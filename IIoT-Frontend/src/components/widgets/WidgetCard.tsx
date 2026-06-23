@@ -2,14 +2,14 @@
 import React, { useMemo } from "react";
 import {
   ResponsiveContainer, AreaChart, Area,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis,
   Tooltip, LineChart, Line,
 } from "recharts";
 import { Trash2, Hash, TrendingUp, Gauge, ToggleLeft, BarChart2, Activity } from "lucide-react";
 import {
-  WidgetItem, WidgetType, WIDGET_TYPES, SIZE_OPTIONS, RANGE_OPTIONS,
+  WidgetItem, WIDGET_TYPES, SIZE_OPTIONS, RANGE_OPTIONS,
   getSizeClass, getActiveRange, getChartData, getSparklineData,
-  getLatestPayload, isStatusOn, defaultColor,
+  isStatusOn, defaultColor,
 } from "@/lib/widget-config";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -45,12 +45,12 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 export function WidgetCard({
   item, index, isEditingConfig, isOnline, logs, latestPayload, onUpdate, onRemove,
 }: WidgetCardProps) {
-  const isChart  = item.type === "chart" || item.type === "bar";
+  const isChart   = item.type === "chart" || item.type === "bar";
   const sizeClass = getSizeClass(item.size, item.type);
-  const color    = item.color ?? defaultColor(item.type);
+  const color     = item.color ?? defaultColor(item.type);
 
-  const chartData  = useMemo(() => isChart ? getChartData(item, logs) : [], [item, logs, isChart]);
-  const sparkData  = useMemo(() => item.type === "trend" ? getSparklineData(item, logs) : [], [item, logs]);
+  const chartData   = useMemo(() => isChart ? getChartData(item, logs) : [], [item, logs, isChart]);
+  const sparkData   = useMemo(() => item.type === "trend" ? getSparklineData(item, logs) : [], [item, logs]);
   const latestValue = latestPayload[item.key];
 
   return (
@@ -91,6 +91,7 @@ function WidgetEditForm({
   const isChart  = item.type === "chart" || item.type === "bar";
   const isGauge  = item.type === "gauge";
   const isStatus = item.type === "status";
+  const isMultiKey = item.type === "chart" && (item.keys?.length ?? 0) > 1;
 
   const inp = "w-full mt-1 bg-slate-50 dark:bg-slate-900/60 rounded-lg px-3 py-2 text-[11px] font-medium outline-none focus:ring-2 ring-blue-200 dark:ring-blue-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 placeholder:text-slate-300 dark:placeholder:text-slate-600";
   const lbl = "text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest";
@@ -130,29 +131,29 @@ function WidgetEditForm({
         </div>
       </div>
 
-      {/* Label + Key — sembunyikan key jika chart multi-key */}
-      <div className={`grid gap-2 ${isChart ? "grid-cols-1" : "grid-cols-2"}`}>
+      {/* Label */}
+      <div>
+        <label className={lbl}>Label</label>
+        <input
+          className={inp}
+          placeholder="Suhu Ruangan"
+          value={item.label}
+          onChange={(e) => onUpdate(index, "label", e.target.value)}
+        />
+      </div>
+
+      {/* MQTT Key — hanya untuk non-chart */}
+      {!isChart && (
         <div>
-          <label className={lbl}>Label</label>
+          <label className={lbl}>MQTT Key</label>
           <input
-            className={inp}
-            placeholder="Suhu Ruangan"
-            value={item.label}
-            onChange={(e) => onUpdate(index, "label", e.target.value)}
+            className={`${inp} font-mono text-blue-600 dark:text-blue-400`}
+            placeholder="temp_c"
+            value={item.key}
+            onChange={(e) => onUpdate(index, "key", e.target.value)}
           />
         </div>
-        {!isChart && (
-          <div>
-            <label className={lbl}>MQTT Key</label>
-            <input
-              className={`${inp} font-mono text-blue-600 dark:text-blue-400`}
-              placeholder="temp_c"
-              value={item.key}
-              onChange={(e) => onUpdate(index, "key", e.target.value)}
-            />
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Unit + Size */}
       <div className="grid grid-cols-2 gap-2">
@@ -180,28 +181,26 @@ function WidgetEditForm({
         </div>
       </div>
 
-      {/* Warna aksen — hanya untuk non-chart atau chart single key */}
-      {(!isChart || (item.keys?.length ?? 0) <= 1) && (
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <label className={lbl}>Warna Aksen</label>
-            <div className="flex items-center gap-2 mt-1.5">
-              {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"].map((c) => (
-                <button
-                  key={c}
-                  onClick={() => onUpdate(index, "color", c)}
-                  className={`w-5 h-5 rounded-full border-2 transition-all cursor-pointer ${item.color === c ? "border-slate-600 scale-110" : "border-transparent"}`}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-              <input
-                type="color"
-                value={item.color ?? defaultColor(item.type)}
-                onChange={(e) => onUpdate(index, "color", e.target.value)}
-                className="w-5 h-5 rounded-full cursor-pointer border-0 p-0 bg-transparent"
-                title="Warna kustom"
+      {/* Warna aksen — non-chart, bar, atau area single key */}
+      {(!isChart || item.type === "bar" || !isMultiKey) && (
+        <div>
+          <label className={lbl}>Warna Aksen</label>
+          <div className="flex items-center gap-2 mt-1.5">
+            {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"].map((c) => (
+              <button
+                key={c}
+                onClick={() => onUpdate(index, "color", c)}
+                className={`w-5 h-5 rounded-full border-2 transition-all cursor-pointer ${item.color === c ? "border-slate-600 scale-110" : "border-transparent"}`}
+                style={{ backgroundColor: c }}
               />
-            </div>
+            ))}
+            <input
+              type="color"
+              value={item.color ?? defaultColor(item.type)}
+              onChange={(e) => onUpdate(index, "color", e.target.value)}
+              className="w-5 h-5 rounded-full cursor-pointer border-0 p-0 bg-transparent"
+              title="Warna kustom"
+            />
           </div>
         </div>
       )}
@@ -246,8 +245,24 @@ function WidgetEditForm({
         </div>
       )}
 
-      {/* Chart: MQTT Keys + range + warna per garis */}
-      {isChart && (
+      {/* Bar: MQTT key tunggal */}
+      {item.type === "bar" && (
+        <div>
+          <label className={lbl}>MQTT Key</label>
+          <input
+            className={`${inp} font-mono text-blue-600 dark:text-blue-400`}
+            placeholder="temp_c"
+            value={item.key}
+            onChange={(e) => {
+              onUpdate(index, "key", e.target.value);
+              onUpdate(index, "keys", []);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Area: multi key */}
+      {item.type === "chart" && (
         <div className="space-y-3">
           <div>
             <label className={lbl}>MQTT Keys (pisah koma untuk multi-garis)</label>
@@ -271,7 +286,7 @@ function WidgetEditForm({
           </div>
 
           {/* Color picker per key — hanya muncul jika multi key */}
-          {(item.keys?.length ?? 0) > 1 && (
+          {isMultiKey && (
             <div>
               <label className={lbl}>Warna Per Garis</label>
               <div className="space-y-2 mt-1.5">
@@ -310,28 +325,31 @@ function WidgetEditForm({
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* Range */}
-          <div>
-            <label className={lbl}>Rentang Waktu</label>
-            <div className="flex gap-1.5 mt-1.5 flex-wrap">
-              {RANGE_OPTIONS.map((r) => (
-                <button
-                  key={r.value}
-                  onClick={() => onUpdate(index, "range", r.value)}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all cursor-pointer ${
-                    (item.range ?? "1h") === r.value
-                      ? "bg-amber-400 border-amber-400 text-white"
-                      : "bg-transparent border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
+      {/* Range — untuk semua chart */}
+      {isChart && (
+        <div>
+          <label className={lbl}>Rentang Waktu</label>
+          <div className="flex gap-1.5 mt-1.5 flex-wrap">
+            {RANGE_OPTIONS.map((r) => (
+              <button
+                key={r.value}
+                onClick={() => onUpdate(index, "range", r.value)}
+                className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all cursor-pointer ${
+                  (item.range ?? "1h") === r.value
+                    ? "bg-amber-400 border-amber-400 text-white"
+                    : "bg-transparent border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
+
     </div>
   );
 }
@@ -351,7 +369,6 @@ function WidgetDisplay({
 }) {
   return (
     <div className="p-4 flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <span
@@ -369,7 +386,6 @@ function WidgetDisplay({
         )}
       </div>
 
-      {/* Body */}
       {item.type === "value"  && <ValueDisplay  value={latestValue} unit={item.unit} color={color} isOnline={isOnline} />}
       {item.type === "trend"  && <TrendDisplay  value={latestValue} unit={item.unit} color={color} isOnline={isOnline} sparkData={sparkData} />}
       {item.type === "gauge"  && <GaugeDisplay  value={latestValue} unit={item.unit} color={color} min={item.min ?? 0} max={item.max ?? 100} />}
@@ -502,8 +518,8 @@ function AreaDisplay({ data, color, item }: {
   color: string;
   item: WidgetItem;
 }) {
-  const keys    = item.keys?.length ? item.keys : [item.key];
-  const isMulti = keys.length > 1;
+  const isMulti = (item.keys?.length ?? 0) > 1;
+  const keys    = isMulti ? item.keys! : [item.key];
 
   const getColor = (i: number) => {
     if (!isMulti) return color;
@@ -533,7 +549,7 @@ function AreaDisplay({ data, color, item }: {
               padding: "6px 10px",
               backgroundColor: "#fff",
             }}
-            formatter={(value: any, name: string) => [value, name]}
+            formatter={(value: any, name: string) => [value, isMulti ? name : item.key]}
             labelStyle={{ color: "#94a3b8", marginBottom: 4 }}
           />
           {keys.map((k, i) => (
@@ -557,7 +573,6 @@ function AreaDisplay({ data, color, item }: {
 
 // ─── BAR CHART ───────────────────────────────────────────────────────────────
 
-// Revert BarDisplay — single key seperti sebelumnya
 function BarDisplay({ data, color }: { data: { time: string; val: number }[]; color: string }) {
   return (
     <div className="h-36 w-full mt-2">
