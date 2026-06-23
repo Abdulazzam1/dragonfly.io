@@ -532,6 +532,9 @@ function AreaDisplay({ data, color, item }: {
   const isMulti = item.type === "chart" && (item.keys?.length ?? 0) > 1;
   const keys    = isMulti ? item.keys! : [item.key];
 
+  // Tambah idx unik supaya tooltip tidak bingung saat time duplikat
+  const indexed = React.useMemo(() => data.map((d, i) => ({ ...d, _idx: i })), [data]);
+
   const getColor = (i: number) => {
     if (!isMulti) return color;
     return item.colors?.[i] ?? MULTI_COLORS[i % MULTI_COLORS.length];
@@ -540,7 +543,7 @@ function AreaDisplay({ data, color, item }: {
   return (
     <div className="h-36 w-full mt-2">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+        <AreaChart data={indexed} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
           <defs>
             {keys.map((k, i) => (
               <linearGradient key={k} id={`grad-${k}-${i}`} x1="0" y1="0" x2="0" y2="1">
@@ -549,10 +552,14 @@ function AreaDisplay({ data, color, item }: {
               </linearGradient>
             ))}
           </defs>
-          <XAxis dataKey="time" tick={{ fontSize: 8, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+          <XAxis dataKey="_idx" tick={{ fontSize: 8, fill: "#94a3b8" }} tickLine={false} axisLine={false}
+            tickFormatter={(idx) => indexed[idx]?.time ?? ""}
+            interval="preserveStartEnd"
+          />
           <YAxis tick={{ fontSize: 8, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-          {/* ✅ FIX 1: hapus position={{ y: 0 }} — bikin tooltip mental ke kiri */}
+          {/* ✅ FIX tooltip nempel kanan: allowEscapeViewBox=false + posisi flip otomatis */}
           <Tooltip
+            allowEscapeViewBox={{ x: false, y: false }}
             contentStyle={{
               fontSize: "10px",
               fontWeight: 700,
@@ -562,6 +569,7 @@ function AreaDisplay({ data, color, item }: {
               backgroundColor: "#fff",
             }}
             formatter={(value: any, name: string) => [value, isMulti ? name : item.key]}
+            labelFormatter={(idx) => indexed[Number(idx)]?.time ?? ""}
             labelStyle={{ color: "#94a3b8", marginBottom: 4 }}
           />
           {keys.map((k, i) => (
@@ -586,16 +594,25 @@ function AreaDisplay({ data, color, item }: {
 // ─── BAR CHART ───────────────────────────────────────────────────────────────
 
 function BarDisplay({ data, color }: { data: { time: string; val: number }[]; color: string }) {
+  // Tambah idx unik supaya saat time duplikat (misal "16.28" berulang)
+  // Recharts tidak salah resolve index bar yang di-hover
+  const indexed = React.useMemo(() => data.map((d, i) => ({ ...d, _idx: i })), [data]);
+
   return (
     <div className="h-36 w-full mt-2">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barCategoryGap="25%">
-          <XAxis dataKey="time" tick={{ fontSize: 8, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+        <BarChart data={indexed} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barCategoryGap="25%">
+          <XAxis dataKey="_idx" tick={{ fontSize: 8, fill: "#94a3b8" }} tickLine={false} axisLine={false}
+            tickFormatter={(idx) => indexed[idx]?.time ?? ""}
+            interval="preserveStartEnd"
+          />
           <YAxis tick={{ fontSize: 8, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-          {/* ✅ FIX 2: hapus position={{ y: 0 }} — sama penyebabnya dengan area chart */}
+          {/* ✅ FIX data tooltip salah: pakai labelFormatter untuk tampilkan time yang benar */}
           <Tooltip
+            allowEscapeViewBox={{ x: false, y: false }}
             contentStyle={{ fontSize: "10px", fontWeight: 700, borderRadius: "10px", border: "1px solid #e2e8f0", padding: "4px 8px", backgroundColor: "#fff" }}
             formatter={(value: any) => [value, "val"]}
+            labelFormatter={(idx) => indexed[Number(idx)]?.time ?? ""}
             labelStyle={{ color: "#94a3b8", marginBottom: 2 }}
             cursor={{ fill: `${color}15` }}
           />
