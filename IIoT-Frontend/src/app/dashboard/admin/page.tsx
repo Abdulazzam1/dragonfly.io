@@ -249,19 +249,17 @@ function InvitationCodeCell({ code }: { code: string }) {
   }, [isVisible]);
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Efek blur diatur lewat class Tailwind "blur-sm" saat isVisible = false */}
+    // Tambahkan h-full dan w-full di sini agar flexbox menjangkau seluruh area td
+    <div className="flex items-center gap-2 w-full h-full min-h-[32px]">
       <span className={`font-mono text-blue-600 dark:text-blue-400 font-black tracking-widest bg-blue-50/40 dark:bg-blue-950/20 px-2.5 py-1 rounded-lg text-[10px] border border-blue-100/50 dark:border-blue-900/30 transition-all duration-300 ${
         isVisible ? "blur-none" : "blur-sm select-none"
       }`}>
         {code}
       </span>
       
-      {/* Tombol Mata */}
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-        title={isVisible ? "Sembunyikan" : "Tampilkan"}
+        className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors flex items-center justify-center"
       >
         {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
       </button>
