@@ -4,6 +4,8 @@ export type WidgetType = "value" | "chart" | "bar" | "gauge" | "status" | "trend
 
 export interface WidgetItem {
   key: string;
+  keys?: string[];
+  colors?: string[];
   label: string;
   type: WidgetType;
   unit?: string;
@@ -69,19 +71,24 @@ export function getActiveRange(rangeValue?: string) {
 export function getChartData(item: WidgetItem, logs: any[]) {
   const rangeOpt = getActiveRange(item.range);
   const cutoff   = Date.now() - rangeOpt.ms;
+  const allKeys  = item.keys?.length ? item.keys : [item.key];
 
   const filtered = logs.filter((l) => l.created_at && new Date(l.created_at).getTime() >= cutoff);
-
-  const sampled = filtered.length > 200
+  const sampled  = filtered.length > 200
     ? filtered.filter((_, i) => i % Math.ceil(filtered.length / 200) === 0)
     : filtered;
 
-  return sampled.map((l) => ({
-    time: rangeOpt.ms > 24 * 60 * 60 * 1000
-      ? new Date(l.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })
-      : new Date(l.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-    val: Number(l.payload?.[item.key] ?? 0),
-  }));
+  return sampled.map((l) => {
+    const point: any = {
+      time: rangeOpt.ms > 24 * 60 * 60 * 1000
+        ? new Date(l.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })
+        : new Date(l.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+    };
+    allKeys.forEach((k) => {
+      point[k] = Number(l.payload?.[k] ?? 0);
+    });
+    return point;
+  });
 }
 
 /** Ambil sparkline (max 20 titik terakhir) untuk widget trend */
