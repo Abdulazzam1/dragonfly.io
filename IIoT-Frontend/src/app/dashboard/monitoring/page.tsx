@@ -28,21 +28,6 @@ function buildChartData(alarms: any[], period: Period) {
   const now = Date.now();
 
   if (period === "hourly") {
-    return Array.from({ length: 60 }, (_, i) => {
-      const slotStart = now - (59 - i) * 60_000;
-      const slotEnd   = slotStart + 60_000;
-      const count = alarms.filter((a) => {
-        const t = new Date(a.triggered_at ?? 0).getTime();
-        return t >= slotStart && t < slotEnd;
-      }).length;
-      const d = new Date(slotStart);
-      // ✅ semua bucket punya label, bukan "" — fix tooltip bug
-      const label = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-      return { label, alarms: count };
-    });
-  }
-
-  if (period === "daily") {
     return Array.from({ length: 24 }, (_, i) => {
       const slotStart = now - (23 - i) * 3_600_000;
       const slotEnd   = slotStart + 3_600_000;
@@ -55,7 +40,7 @@ function buildChartData(alarms: any[], period: Period) {
     });
   }
 
-  if (period === "monthly") {
+  if (period === "daily") {
     return Array.from({ length: 30 }, (_, i) => {
       const slotStart = now - (29 - i) * 86_400_000;
       const slotEnd   = slotStart + 86_400_000;
@@ -69,7 +54,8 @@ function buildChartData(alarms: any[], period: Period) {
   }
 
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return Array.from({ length: 12 }, (_, i) => {
+  if (period === "monthly") {
+    return Array.from({ length: 12 }, (_, i) => {
     const d = new Date();
     d.setMonth(d.getMonth() - (11 - i));
     const y = d.getFullYear(), m = d.getMonth();
@@ -81,6 +67,21 @@ function buildChartData(alarms: any[], period: Period) {
     }).length;
     return { label: MONTHS[m], alarms: count };
   });
+}
+
+  
+  return Array.from({ length: 5 }, (_, i) => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - (4 - i));
+  const y = d.getFullYear();
+  const slotStart = new Date(y, 0, 1).getTime();
+  const slotEnd   = new Date(y + 1, 0, 1).getTime();
+  const count = alarms.filter((a) => {
+    const t = new Date(a.triggered_at ?? 0).getTime();
+    return t >= slotStart && t < slotEnd;
+  }).length;
+  return { label: String(y), alarms: count };
+});
 }
 
 function CustomTooltip({ active, payload, label }: any) {

@@ -33,8 +33,7 @@ export interface WidgetItem {
   /** Format desimal untuk gauge & trend (-1 = auto, 0 = bulat, 1 = 0.0, dst) */
   decimals?: number;
   /**
-   * Threshold steps untuk gauge (dan widget lain di masa depan).
-   * Diurutkan dari nilai terkecil ke terbesar.
+   * Threshold steps untuk gauge.
    * Step dengan value = null adalah "Base" (warna default di bawah threshold pertama).
    */
   thresholds?: ThresholdStep[];
@@ -127,9 +126,11 @@ export function getChartData(item: WidgetItem, logs: any[]) {
   const isMulti  = item.type === "chart" && (item.keys?.length ?? 0) > 1;
 
   const filtered = logs.filter((l) => l.created_at && new Date(l.created_at).getTime() >= cutoff);
-  const sampled  = filtered.length > 200
-    ? filtered.filter((_, i) => i % Math.ceil(filtered.length / 200) === 0)
-    : filtered;
+
+  // FIX: ambil 200 data TERAKHIR (bukan sample merata dari awal)
+  // Sebelumnya: filtered.filter((_, i) => i % Math.ceil(filtered.length / 200) === 0)
+  // yang menyebabkan data terbaru kelewat karena index terakhir tidak selalu habis dibagi N
+  const sampled = filtered.length > 200 ? filtered.slice(-200) : filtered;
 
   return sampled.map((l) => {
     const time = rangeOpt.ms > 24 * 60 * 60 * 1000
