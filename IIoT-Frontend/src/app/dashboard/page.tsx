@@ -25,9 +25,21 @@ function timeAgo(dateStr?: string | null): string {
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+
+  if (h >= 0 && h < 5) {
+    return "Good late night"; // Jam 00.00 - 04.59 (Larut malam/Dini hari)
+  }
+  if (h < 12) {
+    return "Good morning";    // Jam 05.00 - 11.59 (Pagi)
+  }
+  if (h < 17) {
+    return "Good afternoon";  // Jam 12.00 - 16.59 (Siang menjelang sore)
+  }
+  if (h < 22) {
+    return "Good evening";    // Jam 17.00 - 21.59 (Sore menjelang malam)
+  }
+  
+  return "Good night";        // Jam 22.00 - 23.59 (Waktu tidur)
 }
 
 export default function DashboardPage() {
