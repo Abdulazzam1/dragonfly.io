@@ -2,6 +2,15 @@
 
 export type WidgetType = "value" | "chart" | "bar" | "gauge" | "status" | "trend";
 
+// ─── Threshold ────────────────────────────────────────────────────────────────
+
+export interface ThresholdStep {
+  value: number | null; // null = "Base" (no minimum)
+  color: string;
+}
+
+// ─── WidgetItem ───────────────────────────────────────────────────────────────
+
 export interface WidgetItem {
   key: string;
   keys?: string[];
@@ -23,7 +32,47 @@ export interface WidgetItem {
   color?: string;
   /** Format desimal untuk gauge & trend (-1 = auto, 0 = bulat, 1 = 0.0, dst) */
   decimals?: number;
+  /**
+   * Threshold steps untuk gauge (dan widget lain di masa depan).
+   * Diurutkan dari nilai terkecil ke terbesar.
+   * Step dengan value = null adalah "Base" (warna default di bawah threshold pertama).
+   */
+  thresholds?: ThresholdStep[];
 }
+
+// ─── Threshold helpers ────────────────────────────────────────────────────────
+
+/**
+ * Kembalikan warna aktif berdasarkan nilai dan daftar threshold.
+ * Jika tidak ada threshold, kembalikan fallbackColor.
+ */
+export function getThresholdColor(
+  value: number,
+  thresholds: ThresholdStep[] | undefined,
+  fallbackColor: string
+): string {
+  if (!thresholds || thresholds.length === 0) return fallbackColor;
+
+  // Urutkan: base (null) di depan, lalu ascending by value
+  const sorted = [...thresholds].sort((a, b) => {
+    if (a.value === null) return -1;
+    if (b.value === null) return 1;
+    return a.value - b.value;
+  });
+
+  let activeColor = sorted[0].color; // default = base color
+  for (const step of sorted) {
+    if (step.value !== null && value >= step.value) {
+      activeColor = step.color;
+    }
+  }
+  return activeColor;
+}
+
+/** Default threshold set untuk gauge baru */
+export const DEFAULT_THRESHOLDS: ThresholdStep[] = [
+  { value: null, color: "#10b981" }, // Base — hijau
+];
 
 // ─── Widget type metadata ────────────────────────────────────────────────────
 

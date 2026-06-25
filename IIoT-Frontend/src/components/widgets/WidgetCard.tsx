@@ -7,20 +7,26 @@ import {
 } from "recharts";
 import { Trash2, Hash, TrendingUp, Gauge, ToggleLeft, BarChart2, Activity, Plus, X } from "lucide-react";
 import {
-  WidgetItem, WIDGET_TYPES, SIZE_OPTIONS, RANGE_OPTIONS,
+  WidgetItem, ThresholdStep, WIDGET_TYPES, SIZE_OPTIONS, RANGE_OPTIONS,
   getSizeClass, getActiveRange, getChartData, getSparklineData,
-  isStatusOn, defaultColor,
+  isStatusOn, defaultColor, getThresholdColor, DEFAULT_THRESHOLDS,
 } from "@/lib/widget-config";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const MULTI_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+const PRESET_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444",
+  "#8b5cf6", "#ec4899", "#06b6d4", "#f97316",
+];
+
 const DECIMAL_OPTIONS = [
   { value: -1, label: "Auto" },
-  { value: 0,  label: "0" },
-  { value: 1,  label: "0.0" },
+  { value: 0,  label: "0"    },
+  { value: 1,  label: "0.0"  },
   { value: 2,  label: "0.00" },
-  { value: 3,  label: "0.000" },
+  { value: 3,  label: "0.000"},
 ];
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -143,12 +149,56 @@ function WidgetEditForm({
     syncRows(rows.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
 
   const hasEmptyKey = rows.some((r) => !r.key.trim());
+
+  // ── Threshold state ──────────────────────────────────────────────────────
+  const thresholds: ThresholdStep[] = item.thresholds ?? DEFAULT_THRESHOLDS;
+
+  const updateThresholds = (next: ThresholdStep[]) => {
+    onUpdate(index, "thresholds", next);
+  };
+
+  const addThreshold = () => {
+    // Cari nilai tertinggi dari threshold yang ada, tambahkan di atasnya
+    const existing = thresholds.filter((t) => t.value !== null).map((t) => t.value as number);
+    const nextVal = existing.length > 0 ? Math.max(...existing) + 10 : 50;
+    updateThresholds([
+      ...thresholds,
+      { value: nextVal, color: "#ef4444" },
+    ]);
+  };
+
+  const removeThreshold = (i: number) => {
+    // Jangan hapus base (value === null)
+    if (thresholds[i].value === null) return;
+    updateThresholds(thresholds.filter((_, idx) => idx !== i));
+  };
+
+  const updateThresholdValue = (i: number, val: string) => {
+    if (thresholds[i].value === null) return; // base tidak bisa diubah nilainya
+    const num = parseFloat(val);
+    updateThresholds(thresholds.map((t, idx) =>
+      idx === i ? { ...t, value: isNaN(num) ? 0 : num } : t
+    ));
+  };
+
+  const updateThresholdColor = (i: number, color: string) => {
+    updateThresholds(thresholds.map((t, idx) =>
+      idx === i ? { ...t, color } : t
+    ));
+  };
   // ────────────────────────────────────────────────────────────────────────
 
   const isMultiKey = item.type === "chart" && rows.length > 1;
 
   const inp = "w-full mt-1 bg-slate-50 dark:bg-slate-900/60 rounded-lg px-3 py-2 text-[11px] font-medium outline-none focus:ring-2 ring-blue-200 dark:ring-blue-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 placeholder:text-slate-300 dark:placeholder:text-slate-600";
   const lbl = "text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest";
+
+  // Urutkan threshold untuk tampilan: base di bawah, tertinggi di atas (Grafana style)
+  const sortedThresholds = [...thresholds].sort((a, b) => {
+    if (a.value === null) return 1; // base paling bawah
+    if (b.value === null) return -1;
+    return b.value - a.value; // descending
+  });
 
   return (
     <div className="p-4 space-y-3.5 relative">
@@ -259,12 +309,12 @@ function WidgetEditForm({
         </div>
       )}
 
-      {/* Warna aksen — non-chart, bar, atau area single key */}
-      {(!isChart || item.type === "bar" || !isMultiKey) && (
+      {/* Warna aksen — non-chart, bar, atau area single key — DISEMBUNYIKAN untuk gauge (pakai threshold) */}
+      {(!isChart || item.type === "bar" || !isMultiKey) && !isGauge && (
         <div>
           <label className={lbl}>Warna Aksen</label>
           <div className="flex items-center gap-2 mt-1.5">
-            {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"].map((c) => (
+            {PRESET_COLORS.map((c) => (
               <button
                 key={c}
                 onClick={() => onUpdate(index, "color", c)}
@@ -308,6 +358,91 @@ function WidgetEditForm({
           </div>
         </div>
       )}
+
+      {/* ── THRESHOLD — hanya untuk gauge ────────────────────────────────── */}
+      {isGauge && (
+        <div className="space-y-2">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <label className={lbl}>Threshold</label>
+            <button
+              onClick={addThreshold}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer bg-transparent"
+            >
+              <Plus className="w-3 h-3" />
+              Tambah
+            </button>
+          </div>
+
+          {/* Threshold list — descending (tertinggi di atas, base di bawah) */}
+          <div className="space-y-1.5">
+            {sortedThresholds.map((step, displayIdx) => {
+              // cari index asli di array item.thresholds
+              const realIdx = thresholds.findIndex((t) =>
+                t === step || (t.value === step.value && t.color === step.color)
+              );
+              const isBase = step.value === null;
+
+              return (
+                <div
+                  key={displayIdx}
+                  className="flex items-center gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 px-3 py-2"
+                >
+                  {/* Color dot + picker */}
+                  <div className="relative shrink-0">
+                    <div
+                      className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-700 shadow-sm cursor-pointer"
+                      style={{ backgroundColor: step.color }}
+                      onClick={() => {
+                        const picker = document.getElementById(`th-color-${index}-${displayIdx}`);
+                        picker?.click();
+                      }}
+                    />
+                    <input
+                      id={`th-color-${index}-${displayIdx}`}
+                      type="color"
+                      value={step.color}
+                      onChange={(e) => updateThresholdColor(realIdx, e.target.value)}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      style={{ padding: 0, border: "none" }}
+                    />
+                  </div>
+
+                  {/* Value input atau label "Base" */}
+                  {isBase ? (
+                    <span className="flex-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 select-none">
+                      Base
+                    </span>
+                  ) : (
+                    <input
+                      type="number"
+                      className="flex-1 bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none border-none focus:ring-0 p-0 min-w-0"
+                      value={step.value ?? ""}
+                      onChange={(e) => updateThresholdValue(realIdx, e.target.value)}
+                      placeholder="0"
+                    />
+                  )}
+
+                  {/* Delete — hanya untuk non-base */}
+                  {!isBase && (
+                    <button
+                      onClick={() => removeThreshold(realIdx)}
+                      className="shrink-0 p-0.5 text-slate-300 hover:text-rose-400 dark:text-slate-600 dark:hover:text-rose-400 transition-colors border-none bg-transparent cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">
+            Warna gauge berubah saat nilai melewati batas threshold. Klik titik warna untuk menggantinya.
+          </p>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────────────────────── */}
 
       {/* Status ON value */}
       {isStatus && (
@@ -353,7 +488,6 @@ function WidgetEditForm({
             </button>
           </div>
 
-          {/* Validasi: warning jika ada key kosong */}
           {hasEmptyKey && (
             <p className="text-[9px] text-amber-500 font-bold">⚠ Isi semua MQTT key sebelum menutup form</p>
           )}
@@ -364,7 +498,6 @@ function WidgetEditForm({
                 key={i}
                 className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-2.5 space-y-2"
               >
-                {/* Header baris: nomor + tombol hapus */}
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                     Garis {i + 1}
@@ -379,7 +512,6 @@ function WidgetEditForm({
                   )}
                 </div>
 
-                {/* MQTT Key input */}
                 <input
                   className={`w-full bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] font-mono font-medium outline-none focus:ring-2 ring-blue-200 dark:ring-blue-800 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-600 placeholder:text-slate-300 dark:placeholder:text-slate-600 ${
                     !row.key.trim() ? "border-amber-300 dark:border-amber-700" : ""
@@ -389,11 +521,9 @@ function WidgetEditForm({
                   onChange={(e) => updateRow(i, "key", e.target.value)}
                 />
 
-                {/* Warna + Desimal dalam satu baris */}
                 <div className="flex items-center gap-3 flex-wrap">
-                  {/* Color swatches */}
                   <div className="flex items-center gap-1">
-                    {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"].map((c) => (
+                    {PRESET_COLORS.map((c) => (
                       <button
                         key={c}
                         onClick={() => updateRow(i, "color", c)}
@@ -409,7 +539,6 @@ function WidgetEditForm({
                     />
                   </div>
 
-                  {/* Decimal buttons */}
                   <div className="flex gap-1 ml-auto">
                     {DECIMAL_OPTIONS.map((d) => (
                       <button
@@ -431,7 +560,6 @@ function WidgetEditForm({
           </div>
         </div>
       )}
-      {/* ─────────────────────────────────────────────────────────────────── */}
 
       {/* Range — untuk semua chart */}
       {isChart && (
@@ -493,7 +621,17 @@ function WidgetDisplay({
 
       {item.type === "value"  && <ValueDisplay  value={latestValue} unit={item.unit} color={color} isOnline={isOnline} />}
       {item.type === "trend"  && <TrendDisplay  value={latestValue} unit={item.unit} color={color} isOnline={isOnline} sparkData={sparkData} decimals={item.decimals} />}
-      {item.type === "gauge"  && <GaugeDisplay  value={latestValue} unit={item.unit} color={color} min={item.min ?? 0} max={item.max ?? 100} decimals={item.decimals} />}
+      {item.type === "gauge"  && (
+        <GaugeDisplay
+          value={latestValue}
+          unit={item.unit}
+          color={color}
+          min={item.min ?? 0}
+          max={item.max ?? 100}
+          decimals={item.decimals}
+          thresholds={item.thresholds}
+        />
+      )}
       {item.type === "status" && <StatusDisplay value={latestValue} label={item.label} color={color} onValue={item.onValue} isOnline={isOnline} />}
       {item.type === "chart"  && <AreaDisplay   data={chartData} color={color} item={item} />}
       {item.type === "bar"    && <BarDisplay    data={chartData} color={color} />}
@@ -560,12 +698,21 @@ function TrendDisplay({ value, unit, color, isOnline, sparkData, decimals }: {
 
 // ─── GAUGE ───────────────────────────────────────────────────────────────────
 
-function GaugeDisplay({ value, unit, color, min, max, decimals }: {
-  value: any; unit?: string; color: string; min: number; max: number; decimals?: number;
+function GaugeDisplay({ value, unit, color, min, max, decimals, thresholds }: {
+  value: any;
+  unit?: string;
+  color: string;
+  min: number;
+  max: number;
+  decimals?: number;
+  thresholds?: ThresholdStep[];
 }) {
   const num       = Number(value ?? min);
   const pct       = Math.min(1, Math.max(0, (num - min) / (max - min)));
   const displayed = formatVal(value, decimals);
+
+  // Warna aktif: dari threshold jika ada, fallback ke color prop
+  const activeColor = getThresholdColor(num, thresholds, color);
 
   const R  = 38;
   const cx = 55, cy = 55;
@@ -582,16 +729,86 @@ function GaugeDisplay({ value, unit, color, min, max, decimals }: {
     ? `M ${arcX(startDeg)} ${arcY(startDeg)} A ${R} ${R} 0 ${pct > 0.5 ? 1 : 0} 1 ${arcX(fillDeg)} ${arcY(fillDeg)}`
     : null;
 
+  // Render threshold color bands di bawah arc (opsional — seperti Grafana subtle indicator)
+  const hasThresholds = thresholds && thresholds.length > 1;
+
   return (
     <div className="flex flex-col items-center mt-1">
       <svg width="140" height="100" viewBox="0 0 110 80">
-        <path d={bgPath} fill="none" stroke="#e2e8f0" strokeWidth="8" strokeLinecap="round" className="dark:stroke-slate-700" />
-        {fillPath && <path d={fillPath} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" />}
-        <text x={cx} y={cy + 10} textAnchor="middle" fontSize="20" fontWeight="900" fill={color}>{displayed}</text>
-        {unit && <text x={cx} y={cy + 26} textAnchor="middle" fontSize="10" fontWeight="700" fill="#94a3b8">{unit}</text>}
+        {/* Background arc */}
+        <path
+          d={bgPath}
+          fill="none"
+          stroke="#e2e8f0"
+          strokeWidth="8"
+          strokeLinecap="round"
+          className="dark:stroke-slate-700"
+        />
+
+        {/* Fill arc — warna dari threshold */}
+        {fillPath && (
+          <path
+            d={fillPath}
+            fill="none"
+            stroke={activeColor}
+            strokeWidth="8"
+            strokeLinecap="round"
+            style={{ transition: "stroke 0.4s ease" }}
+          />
+        )}
+
+        {/* Nilai tengah */}
+        <text x={cx} y={cy + 10} textAnchor="middle" fontSize="20" fontWeight="900" fill={activeColor}
+          style={{ transition: "fill 0.4s ease" }}>
+          {displayed}
+        </text>
+
+        {/* Satuan */}
+        {unit && (
+          <text x={cx} y={cy + 26} textAnchor="middle" fontSize="10" fontWeight="700" fill="#94a3b8">
+            {unit}
+          </text>
+        )}
+
+        {/* Min / Max labels */}
         <text x="10" y="76" fontSize="8" fontWeight="700" fill="#cbd5e1">{min}</text>
         <text x="92" y="76" fontSize="8" fontWeight="700" fill="#cbd5e1" textAnchor="end">{max}</text>
+
+        {/* Threshold tick marks — titik kecil di arc untuk tiap threshold */}
+        {hasThresholds && thresholds!
+          .filter((t) => t.value !== null)
+          .map((t, i) => {
+            const tPct = Math.min(1, Math.max(0, ((t.value as number) - min) / (max - min)));
+            const tDeg = startDeg + tPct * 270;
+            const tx   = cx + (R + 2) * Math.cos(toRad(tDeg));
+            const ty   = cy + (R + 2) * Math.sin(toRad(tDeg));
+            return (
+              <circle key={i} cx={tx} cy={ty} r="2.5" fill={t.color} opacity="0.9" />
+            );
+          })
+        }
       </svg>
+
+      {/* Threshold legend — hanya jika ada lebih dari 1 threshold */}
+      {hasThresholds && (
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap justify-center">
+          {[...thresholds!]
+            .sort((a, b) => {
+              if (a.value === null) return -1;
+              if (b.value === null) return 1;
+              return (a.value as number) - (b.value as number);
+            })
+            .map((t, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: t.color }} />
+                <span className="text-[8px] font-bold text-slate-400">
+                  {t.value === null ? "Base" : `≥${t.value}`}
+                </span>
+              </div>
+            ))
+          }
+        </div>
+      )}
     </div>
   );
 }
