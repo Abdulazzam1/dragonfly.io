@@ -2,76 +2,37 @@
 
 export type WidgetType = "value" | "chart" | "bar" | "gauge" | "status" | "trend";
 
-// ─── Threshold ────────────────────────────────────────────────────────────────
-
-export interface ThresholdStep {
-  value: number | null; // null = "Base" (no minimum)
+export interface ThresholdItem {
+  value: number;
   color: string;
+  label?: string;
 }
 
-// ─── WidgetItem ───────────────────────────────────────────────────────────────
+export interface GridPos {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface WidgetItem {
   key: string;
   keys?: string[];
   colors?: string[];
-  /** Desimal per key untuk area chart multi-key (-1 = auto) */
   keyDecimals?: number[];
   label: string;
   type: WidgetType;
   unit?: string;
   size?: string;
   range?: string;
-  /** Gauge: nilai minimum (default 0) */
   min?: number;
-  /** Gauge: nilai maksimum (default 100) */
   max?: number;
-  /** Status: nilai yang dianggap "ON" */
   onValue?: string;
-  /** Warna aksen widget */
   color?: string;
-  /** Format desimal untuk gauge & trend (-1 = auto, 0 = bulat, 1 = 0.0, dst) */
   decimals?: number;
-  /**
-   * Threshold steps untuk gauge.
-   * Step dengan value = null adalah "Base" (warna default di bawah threshold pertama).
-   */
-  thresholds?: ThresholdStep[];
+  thresholds?: ThresholdItem[];
+  gridPos?: GridPos;
 }
-
-// ─── Threshold helpers ────────────────────────────────────────────────────────
-
-/**
- * Kembalikan warna aktif berdasarkan nilai dan daftar threshold.
- * Jika tidak ada threshold, kembalikan fallbackColor.
- */
-export function getThresholdColor(
-  value: number,
-  thresholds: ThresholdStep[] | undefined,
-  fallbackColor: string
-): string {
-  if (!thresholds || thresholds.length === 0) return fallbackColor;
-
-  // Urutkan: base (null) di depan, lalu ascending by value
-  const sorted = [...thresholds].sort((a, b) => {
-    if (a.value === null) return -1;
-    if (b.value === null) return 1;
-    return a.value - b.value;
-  });
-
-  let activeColor = sorted[0].color; // default = base color
-  for (const step of sorted) {
-    if (step.value !== null && value >= step.value) {
-      activeColor = step.color;
-    }
-  }
-  return activeColor;
-}
-
-/** Default threshold set untuk gauge baru */
-export const DEFAULT_THRESHOLDS: ThresholdStep[] = [
-  { value: null, color: "#10b981" }, // Base — hijau
-];
 
 // ─── Widget type metadata ────────────────────────────────────────────────────
 
@@ -82,15 +43,26 @@ export const WIDGET_TYPES: {
   icon: string;
   defaultSize: string;
 }[] = [
-  { value: "value",  label: "Nilai",    desc: "Angka real-time besar",        icon: "hash",        defaultSize: "small"  },
-  { value: "trend",  label: "Tren",     desc: "Nilai + sparkline mini",        icon: "trending-up", defaultSize: "small"  },
-  { value: "gauge",  label: "Gauge",    desc: "Meter setengah lingkaran",      icon: "gauge",       defaultSize: "small"  },
-  { value: "status", label: "Status",   desc: "Indikator ON / OFF",            icon: "toggle",      defaultSize: "small"  },
-  { value: "chart",  label: "Area",     desc: "Grafik area historis",          icon: "area",        defaultSize: "medium" },
-  { value: "bar",    label: "Bar",      desc: "Grafik batang historis",        icon: "bar",         defaultSize: "medium" },
+  { value: "value",  label: "Nilai",  desc: "Angka real-time besar",   icon: "hash",        defaultSize: "small"  },
+  { value: "trend",  label: "Tren",   desc: "Nilai + sparkline mini",   icon: "trending-up", defaultSize: "small"  },
+  { value: "gauge",  label: "Gauge",  desc: "Meter setengah lingkaran", icon: "gauge",       defaultSize: "small"  },
+  { value: "status", label: "Status", desc: "Indikator ON / OFF",       icon: "toggle",      defaultSize: "small"  },
+  { value: "chart",  label: "Area",   desc: "Grafik area historis",     icon: "area",        defaultSize: "medium" },
+  { value: "bar",    label: "Bar",    desc: "Grafik batang historis",   icon: "bar",         defaultSize: "medium" },
 ];
 
-// ─── Size ────────────────────────────────────────────────────────────────────
+// ─── Default grid sizes per type ─────────────────────────────────────────────
+
+export function defaultGridPos(type: WidgetType, index: number): GridPos {
+  const isWide = type === "chart" || type === "bar";
+  const w = isWide ? 2 : 1;
+  const h = isWide ? 3 : 2;
+  // auto-place: 3 cols
+  const col = index % 3;
+  return { x: col * (isWide ? 2 : 1), y: Math.floor(index / 3) * h, w, h };
+}
+
+// ─── Size (legacy, masih dipakai untuk fallback) ──────────────────────────────
 
 export const SIZE_OPTIONS = [
   { value: "small",  label: "Kecil",  colSpan: "col-span-1"                  },
@@ -118,7 +90,26 @@ export function getActiveRange(rangeValue?: string) {
   return RANGE_OPTIONS.find((r) => r.value === (rangeValue ?? "1h")) ?? RANGE_OPTIONS[0];
 }
 
-// ─── Chart data ──────────────────────────────────────────────────────────────
+// ─── Threshold helper ─────────────────────────────────────────────────────────
+
+export function resolveThresholdColor(
+  value: any,
+  thresholds: ThresholdItem[] | undefined,
+  baseColor: string
+): string {
+  if (!thresholds || thresholds.length === 0) return baseColor;
+  const num = Number(value);
+  if (isNaN(num)) return baseColor;
+  // Sort ascending by value, pick highest threshold that num exceeds
+  const sorted = [...thresholds].sort((a, b) => a.value - b.value);
+  let active = baseColor;
+  for (const t of sorted) {
+    if (num >= t.value) active = t.color;
+  }
+  return active;
+}
+
+// ─── Chart data ───────────────────────────────────────────────────────────────
 
 export function getChartData(item: WidgetItem, logs: any[]) {
   const rangeOpt = getActiveRange(item.range);
@@ -126,11 +117,9 @@ export function getChartData(item: WidgetItem, logs: any[]) {
   const isMulti  = item.type === "chart" && (item.keys?.length ?? 0) > 1;
 
   const filtered = logs.filter((l) => l.created_at && new Date(l.created_at).getTime() >= cutoff);
-
-  // FIX: ambil 200 data TERAKHIR (bukan sample merata dari awal)
-  // Sebelumnya: filtered.filter((_, i) => i % Math.ceil(filtered.length / 200) === 0)
-  // yang menyebabkan data terbaru kelewat karena index terakhir tidak selalu habis dibagi N
-  const sampled = filtered.length > 200 ? filtered.slice(-200) : filtered;
+  const sampled  = filtered.length > 200
+    ? filtered.filter((_, i) => i % Math.ceil(filtered.length / 200) === 0)
+    : filtered;
 
   return sampled.map((l) => {
     const time = rangeOpt.ms > 24 * 60 * 60 * 1000
@@ -142,14 +131,12 @@ export function getChartData(item: WidgetItem, logs: any[]) {
       item.keys!.forEach((k) => { point[k] = Number(l.payload?.[k] ?? 0); });
       return point;
     }
-
     return { time, val: Number(l.payload?.[item.key] ?? 0) };
   });
 }
 
 export function getSparklineData(item: WidgetItem, logs: any[]) {
-  const recent = logs.slice(-20);
-  return recent.map((l) => ({ val: Number(l.payload?.[item.key] ?? 0) }));
+  return logs.slice(-20).map((l) => ({ val: Number(l.payload?.[item.key] ?? 0) }));
 }
 
 export function getLatestPayload(logs: any[]): Record<string, any> {
@@ -170,12 +157,8 @@ export function isStatusOn(value: any, onValue?: string): boolean {
 
 export function defaultColor(type: WidgetType): string {
   const map: Record<WidgetType, string> = {
-    value:  "#3b82f6",
-    trend:  "#8b5cf6",
-    gauge:  "#f59e0b",
-    status: "#10b981",
-    chart:  "#3b82f6",
-    bar:    "#6366f1",
+    value: "#3b82f6", trend: "#8b5cf6", gauge: "#f59e0b",
+    status: "#10b981", chart: "#3b82f6", bar: "#6366f1",
   };
   return map[type] ?? "#3b82f6";
 }

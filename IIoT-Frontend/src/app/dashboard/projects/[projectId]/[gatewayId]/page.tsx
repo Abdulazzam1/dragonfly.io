@@ -2,34 +2,61 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  Settings, Save, ArrowLeft, Plus,
-  LayoutGrid, Loader2, ChevronLeft, ChevronRight, Cpu,
+  Save, ArrowLeft, Plus, LayoutGrid, Loader2,
+  ChevronLeft, ChevronRight, Cpu, Pencil, X, Check,
 } from "lucide-react";
+import GridLayout, { Layout } from "react-grid-layout";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+
 import { API_BASE, getAuthHeaders, getLocalUser, isReadOnlyRole } from "@/lib/api";
-import { WidgetItem, getLatestPayload } from "@/lib/widget-config";
-import { WidgetCard } from "@/components/widgets/WidgetCard";
+import { WidgetItem, getLatestPayload, defaultGridPos } from "@/lib/widget-config";
+import { WidgetCard, WidgetSettingsPanel } from "@/components/widgets/WidgetCard";
+
+// ─── Grid config ─────────────────────────────────────────────────────────────
+const COLS  = 12;
+const ROW_H = 80; // px per row unit
+
+function itemToLayout(item: WidgetItem, index: number): Layout {
+  const gp = item.gridPos ?? defaultGridPos(item.type, index);
+  return { i: String(index), x: gp.x, y: gp.y, w: gp.w, h: gp.h, minW: 2, minH: 2 };
+}
 
 export default function GatewayDetailPage() {
   const router = useRouter();
   const { projectId, gatewayId } = useParams();
 
-  const [logs, setLogs] = useState<any[]>([]);
-  const [gatewayInfo, setGatewayInfo] = useState<any>(null);
+  const [logs,            setLogs]            = useState<any[]>([]);
+  const [gatewayInfo,     setGatewayInfo]     = useState<any>(null);
   const [projectGateways, setProjectGateways] = useState<any[]>([]);
-  const [devices, setDevices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [devices,         setDevices]         = useState<any[]>([]);
+  const [loading,         setLoading]         = useState(true);
 
-  const [isEditingConfig, setIsEditingConfig] = useState(false);
-  const [editConfig, setEditConfig] = useState<WidgetItem[]>([]);
+  const [isEditMode,      setIsEditMode]      = useState(false);
+  const [editConfig,      setEditConfig]      = useState<WidgetItem[]>([]);
+  const [selectedIdx,     setSelectedIdx]     = useState<number | null>(null);
+  const [layouts,         setLayouts]         = useState<Layout[]>([]);
+  const [containerWidth,  setContainerWidth]  = useState(1200);
 
   const isReadOnly = isReadOnlyRole(getLocalUser()?.role);
+
+  // Track container width for responsive grid
+  const gridRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!gridRef.current) return;
+    const obs = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    obs.observe(gridRef.current);
+    return () => obs.disconnect();
+  }, []);
 
   const fetchAllData = useCallback(async () => {
     if (!projectId || !gatewayId) return;
     try {
       const [resGw, resProject, resDev] = await Promise.all([
         fetch(`${API_BASE}/gateways/${gatewayId}`, { method: "GET", cache: "no-store", headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/projects/${projectId}`, { method: "GET", cache: "no-store", headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/projects/${projectId}`,  { method: "GET", cache: "no-store", headers: getAuthHeaders() }),
         fetch(`${API_BASE}/devices/?gateway_id=${gatewayId}`, { method: "GET", cache: "no-store", headers: getAuthHeaders() }),
       ]);
 
@@ -39,20 +66,18 @@ export default function GatewayDetailPage() {
         if (data) {
           setGatewayInfo(data);
           setLogs(data.logs ?? []);
-          // Di fetchAllData, setelah setLogs
-          console.log("logs sample:", data.logs?.slice(-3));
-          console.log("latestPayload:", getLatestPayload(data.logs ?? []));
-          if (!isEditingConfig) setEditConfig(data.config ?? []);
+          if (!isEditMode) {
+            const cfg: WidgetItem[] = data.config ?? [];
+            setEditConfig(cfg);
+            setLayouts(cfg.map((item, i) => itemToLayout(item, i)));
+          }
         }
       }
-
       if (resProject.ok) {
         const r = await resProject.json();
-        const gwInProject: any[] = r.data?.gateways ?? [];
-        const sorted = [...gwInProject].sort((a, b) => (a.gateway_id ?? a.id ?? 0) - (b.gateway_id ?? b.id ?? 0));
-        setProjectGateways(sorted);
+        const gws: any[] = r.data?.gateways ?? [];
+        setProjectGateways([...gws].sort((a, b) => (a.gateway_id ?? a.id ?? 0) - (b.gateway_id ?? b.id ?? 0)));
       }
-
       if (resDev.ok) {
         const r = await resDev.json();
         setDevices(r.data ?? []);
@@ -62,52 +87,67 @@ export default function GatewayDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, gatewayId, isEditingConfig]);
+  }, [projectId, gatewayId, isEditMode]);
 
   useEffect(() => {
     fetchAllData();
-    const interval = setInterval(fetchAllData, 5000);
-    return () => clearInterval(interval);
+    const iv = setInterval(fetchAllData, 5000);
+    return () => clearInterval(iv);
   }, [fetchAllData]);
 
   const currentIndex = projectGateways.findIndex((g) => String(g.gateway_id ?? g.id) === String(gatewayId));
 
-  const handlePrev = () => {
-    if (currentIndex > 0) {
-      const gw = projectGateways[currentIndex - 1];
-      router.push(`/dashboard/projects/${projectId}/${gw.gateway_id ?? gw.id}`);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentIndex < projectGateways.length - 1) {
-      const gw = projectGateways[currentIndex + 1];
-      router.push(`/dashboard/projects/${projectId}/${gw.gateway_id ?? gw.id}`);
-    }
-  };
-
   const isOnline = (() => {
     if (!gatewayInfo?.last_ping) return false;
-    const diffSec = (Date.now() - new Date(gatewayInfo.last_ping).getTime()) / 1000;
-    return diffSec < 60;
+    return (Date.now() - new Date(gatewayInfo.last_ping).getTime()) / 1000 < 60;
   })();
+
+  // ── Layout sync helpers ───────────────────────────────────────────────────
+
+  const onLayoutChange = (newLayout: Layout[]) => {
+    setLayouts(newLayout);
+    setEditConfig((prev) => prev.map((item, i) => {
+      const l = newLayout.find((n) => n.i === String(i));
+      if (!l) return item;
+      return { ...item, gridPos: { x: l.x, y: l.y, w: l.w, h: l.h } };
+    }));
+  };
+
+  // ── Widget CRUD ───────────────────────────────────────────────────────────
 
   const addWidget = () => {
     if (isReadOnly) return;
-    setEditConfig([...editConfig, { key: "", label: "", type: "value", unit: "", size: "small", range: "1h" }]);
+    const newItem: WidgetItem = { key: "", label: "", type: "value", unit: "", size: "small", range: "1h" };
+    const newIdx = editConfig.length;
+    const gp = defaultGridPos("value", newIdx);
+    newItem.gridPos = gp;
+    const newConfig  = [...editConfig, newItem];
+    const newLayouts = [...layouts, { i: String(newIdx), ...gp, minW: 2, minH: 2 }];
+    setEditConfig(newConfig);
+    setLayouts(newLayouts);
+    setSelectedIdx(newIdx);
   };
 
   const removeWidget = (i: number) => {
     if (isReadOnly) return;
-    setEditConfig(editConfig.filter((_, idx) => idx !== i));
+    const newConfig  = editConfig.filter((_, idx) => idx !== i);
+    const newLayouts = newConfig.map((item, newIdx) => itemToLayout(item, newIdx));
+    setEditConfig(newConfig);
+    setLayouts(newLayouts);
+    if (selectedIdx === i) setSelectedIdx(null);
+    else if (selectedIdx !== null && selectedIdx > i) setSelectedIdx(selectedIdx - 1);
   };
 
-  const updateWidget = (i: number, field: string, val: string) => {
+  const updateWidget = (i: number, field: string, val: any) => {
     if (isReadOnly) return;
-    const updated = [...editConfig];
-    (updated[i] as any)[field] = val;
-    setEditConfig(updated);
+    setEditConfig((prev) => {
+      const updated = [...prev];
+      (updated[i] as any)[field] = val;
+      return updated;
+    });
   };
+
+  // ── Save ──────────────────────────────────────────────────────────────────
 
   const handleSaveConfig = async () => {
     if (isReadOnly) return alert("Akses ditolak!");
@@ -117,18 +157,17 @@ export default function GatewayDetailPage() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           gateway_id: Number(gatewayId),
-          name: gatewayInfo?.name ?? "",
-          hmi_code: gatewayInfo?.hmi_code ?? null,
+          name:       gatewayInfo?.name ?? "",
+          hmi_code:   gatewayInfo?.hmi_code ?? null,
           project_id: Number(projectId),
           company_id: gatewayInfo?.company_id ?? null,
-          status: gatewayInfo?.status ?? "offline",
-          config: editConfig,
+          status:     gatewayInfo?.status ?? "offline",
+          config:     editConfig,
         }),
       });
-
       if (res.ok) {
-        alert("Layout widget berhasil disimpan!");
-        setIsEditingConfig(false);
+        setIsEditMode(false);
+        setSelectedIdx(null);
         fetchAllData();
       } else {
         const result = await res.json().catch(() => ({}));
@@ -137,190 +176,248 @@ export default function GatewayDetailPage() {
     } catch { alert("Gagal menghubungi server."); }
   };
 
+  const exitEditMode = () => {
+    setIsEditMode(false);
+    setSelectedIdx(null);
+    // revert unsaved
+    const cfg: WidgetItem[] = gatewayInfo?.config ?? [];
+    setEditConfig(cfg);
+    setLayouts(cfg.map((item, i) => itemToLayout(item, i)));
+  };
+
+  // ── Loading ───────────────────────────────────────────────────────────────
+
   if (loading && !gatewayInfo) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
-        <p className="mt-3 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-          Syncing telemetry data streams...
-        </p>
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <p className="mt-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Syncing telemetry...</p>
       </div>
     );
   }
 
   const latestPayload = getLatestPayload(logs);
+  const selectedItem  = selectedIdx !== null ? editConfig[selectedIdx] : null;
 
   return (
-    <div className="p-5 space-y-5 bg-slate-50 dark:bg-slate-900 min-h-screen font-sans text-slate-900 dark:text-slate-100">
+    <div className="bg-slate-50 dark:bg-slate-900 min-h-screen font-sans text-slate-900 dark:text-slate-100">
 
-      {/* ── HEADER PANEL ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/dashboard/projects")}
-            className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all bg-white dark:bg-slate-800 cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-          </button>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-lg font-black tracking-tighter text-slate-800 dark:text-slate-100 uppercase italic">
-                {gatewayInfo?.name ?? "Loading Node..."}
-              </h1>
-              <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all ${
-                isOnline
-                  ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40 animate-pulse"
-                  : "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40"
-              }`}>
-                {isOnline ? "● Active Stream" : "○ Link Offline"}
-              </span>
-              {gatewayInfo?.hmi_code && (
-                <span className="px-1.5 py-0.5 rounded-md text-[8px] font-mono font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 uppercase">
-                  HMI: {gatewayInfo.hmi_code}
-                </span>
-              )}
-            </div>
-            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">
-              Project #{projectId} · Gateway #{gatewayId} · {devices.length} Device Terdaftar
-            </p>
+      {/* ── EDIT MODE TOP BAR ─────────────────────────────────────────────── */}
+      {isEditMode && (
+        <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-2.5 bg-blue-600 text-white shadow-lg">
+          <div className="flex items-center gap-2">
+            <Pencil className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Mode Edit Aktif</span>
+            <span className="text-[9px] text-blue-200">— Klik panel untuk setting, drag untuk pindah, tarik pojok untuk resize</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={addWidget}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-400 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer border-none">
+              <Plus className="w-3 h-3" /> Panel
+            </button>
+            <button onClick={exitEditMode}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer border-none">
+              <X className="w-3 h-3" /> Batal
+            </button>
+            <button onClick={handleSaveConfig}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer border-none shadow">
+              <Check className="w-3 h-3" /> Simpan
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-3">
-          {projectGateways.length > 1 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-xl shadow-sm h-9">
-              <button
-                onClick={handlePrev}
-                disabled={currentIndex <= 0}
-                className="p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 cursor-pointer transition-all border-none bg-transparent text-slate-700 dark:text-slate-300 h-full flex items-center"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <div className="px-1 flex items-center gap-1 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase tracking-wider italic whitespace-nowrap">
-                <Cpu className="w-3 h-3 text-blue-500" />
-                Node {currentIndex + 1} / {projectGateways.length}
+      <div className="p-5 space-y-4">
+
+        {/* ── HEADER ───────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.push("/dashboard/projects")}
+              className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all bg-white dark:bg-slate-800 cursor-pointer">
+              <ArrowLeft className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+            </button>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-lg font-black tracking-tighter text-slate-800 dark:text-slate-100 uppercase italic">
+                  {gatewayInfo?.name ?? "Loading..."}
+                </h1>
+                <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all ${
+                  isOnline
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border-emerald-200 animate-pulse"
+                    : "bg-rose-50 dark:bg-rose-950/30 text-rose-600 border-rose-200"
+                }`}>
+                  {isOnline ? "● Active Stream" : "○ Link Offline"}
+                </span>
+                {gatewayInfo?.hmi_code && (
+                  <span className="px-1.5 py-0.5 rounded-md text-[8px] font-mono font-black text-blue-600 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 uppercase">
+                    HMI: {gatewayInfo.hmi_code}
+                  </span>
+                )}
               </div>
-              <button
-                onClick={handleNext}
-                disabled={currentIndex >= projectGateways.length - 1}
-                className="p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 cursor-pointer transition-all border-none bg-transparent text-slate-700 dark:text-slate-300 h-full flex items-center"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {!isReadOnly && (
-            <div className="flex gap-1.5 h-9">
-              {isEditingConfig && (
-                <button
-                  onClick={handleSaveConfig}
-                  className="flex items-center gap-1.5 px-4 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all cursor-pointer border-none h-full"
-                >
-                  <Save className="w-3.5 h-3.5" /> Simpan Layout
-                </button>
-              )}
-              <button
-                onClick={() => setIsEditingConfig(!isEditingConfig)}
-                className={`flex items-center gap-1.5 px-4 border rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm cursor-pointer h-full ${
-                  isEditingConfig
-                    ? "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400"
-                    : "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
-                }`}
-              >
-                <Settings className="w-3.5 h-3.5" /> {isEditingConfig ? "Batal" : "Atur Widget"}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── MAIN CONTENT ── */}
-      <div className="flex flex-col lg:flex-row gap-5">
-
-        {/* Widget Grid */}
-        <div className="flex-1">
-          {editConfig.length === 0 && !isEditingConfig ? (
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center">
-              <LayoutGrid className="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-2.5" />
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Belum ada widget — klik "Atur Widget" untuk menambahkan
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                Project #{projectId} · Gateway #{gatewayId} · {devices.length} Device
               </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {editConfig.map((item, index) => (
-                <WidgetCard
-                  key={index}
-                  item={item}
-                  index={index}
-                  isEditingConfig={isEditingConfig}
-                  isOnline={isOnline}
-                  logs={logs}
-                  latestPayload={latestPayload}
-                  onUpdate={updateWidget}
-                  onRemove={removeWidget}
-                />
-              ))}
+          </div>
 
-              {isEditingConfig && !isReadOnly && (
-                <button
-                  onClick={addWidget}
-                  className="border-4 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center p-10 text-slate-400 hover:border-blue-400 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 hover:text-blue-600 transition-all group bg-transparent cursor-pointer"
-                >
-                  <Plus className="w-7 h-7 mb-1.5 group-hover:scale-110 transition-transform text-slate-300 dark:text-slate-600 group-hover:text-blue-500" />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Tambah Widget</span>
+          <div className="flex items-center gap-3">
+            {projectGateways.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-xl shadow-sm h-9">
+                <button onClick={() => currentIndex > 0 && router.push(`/dashboard/projects/${projectId}/${projectGateways[currentIndex-1].gateway_id ?? projectGateways[currentIndex-1].id}`)}
+                  disabled={currentIndex <= 0}
+                  className="p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 cursor-pointer transition-all border-none bg-transparent text-slate-700 dark:text-slate-300 h-full flex items-center">
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── SIDEBAR META ── */}
-        <div className="w-full lg:w-64 shrink-0">
-          <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm sticky top-16 space-y-4">
-            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="text-[8px] font-black uppercase tracking-[0.2em]">Meta Properties</span>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Link Status</label>
-              <div className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border w-fit ${
-                isOnline
-                  ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40"
-                  : "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/40"
-              }`}>
-                ● {isOnline ? "Online" : "Offline"}
-              </div>
-            </div>
-
-            {devices.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Registered Devices</label>
-                <div className="space-y-1">
-                  {devices.map((dv) => (
-                    <div key={dv.device_id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                      <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase truncate">{dv.name}</span>
-                      <span className="text-[8px] font-mono text-slate-400 dark:text-slate-500 ml-2 shrink-0">{dv.unit}</span>
-                    </div>
-                  ))}
+                <div className="px-1 flex items-center gap-1 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase tracking-wider italic whitespace-nowrap">
+                  <Cpu className="w-3 h-3 text-blue-500" /> Node {currentIndex + 1} / {projectGateways.length}
                 </div>
+                <button onClick={() => currentIndex < projectGateways.length - 1 && router.push(`/dashboard/projects/${projectId}/${projectGateways[currentIndex+1].gateway_id ?? projectGateways[currentIndex+1].id}`)}
+                  disabled={currentIndex >= projectGateways.length - 1}
+                  className="p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 cursor-pointer transition-all border-none bg-transparent text-slate-700 dark:text-slate-300 h-full flex items-center">
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
-            <div className="space-y-1">
-              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Last Ping</label>
-              <p className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400">
-                {gatewayInfo?.last_ping
-                  ? new Date(gatewayInfo.last_ping).toLocaleString("id-ID")
-                  : "— Belum ada data —"}
-              </p>
-            </div>
+            {/* Tombol edit — subtle icon-only saat tidak aktif */}
+            {!isReadOnly && !isEditMode && (
+              <button onClick={() => setIsEditMode(true)}
+                title="Edit Layout"
+                className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-blue-600 transition-all shadow-sm cursor-pointer">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
 
-            <div className="space-y-1">
-              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Log Records (last 1000)</label>
-              <p className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{logs.length}</p>
+        {/* ── MAIN AREA (grid + sidebar) ────────────────────────────────────── */}
+        <div className="flex gap-5">
+
+          {/* ── GRID AREA ─────────────────────────────────────────────────── */}
+          <div className="flex-1 min-w-0" ref={gridRef}>
+            {editConfig.length === 0 ? (
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center">
+                <LayoutGrid className="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-2.5" />
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Belum ada panel — {isEditMode ? 'klik "+ Panel" di atas' : 'klik ikon pensil untuk mulai edit'}
+                </p>
+              </div>
+            ) : (
+              <GridLayout
+                layout={layouts}
+                cols={COLS}
+                rowHeight={ROW_H}
+                width={containerWidth}
+                isDraggable={isEditMode}
+                isResizable={isEditMode}
+                onLayoutChange={onLayoutChange}
+                draggableHandle=".drag-handle"
+                margin={[12, 12]}
+                containerPadding={[0, 0]}
+                resizeHandles={["se"]}
+              >
+                {editConfig.map((item, index) => (
+                  <div key={String(index)} className="relative">
+                    {/* Drag handle — hanya muncul saat edit mode */}
+                    {isEditMode && (
+                      <div className="drag-handle absolute top-0 left-0 right-0 h-7 z-10 cursor-grab active:cursor-grabbing flex items-center px-3 gap-1.5 bg-slate-900/5 dark:bg-white/5 rounded-t-2xl">
+                        <div className="flex gap-0.5">
+                          {[...Array(6)].map((_, i) => <div key={i} className="w-0.5 h-3 bg-slate-400/40 dark:bg-slate-500/40 rounded-full" />)}
+                        </div>
+                      </div>
+                    )}
+                    <WidgetCard
+                      item={item}
+                      index={index}
+                      isEditMode={isEditMode}
+                      isSelected={selectedIdx === index}
+                      isOnline={isOnline}
+                      logs={logs}
+                      latestPayload={latestPayload}
+                      onSelect={setSelectedIdx}
+                    />
+                  </div>
+                ))}
+              </GridLayout>
+            )}
+          </div>
+
+          {/* ── SIDEBAR ───────────────────────────────────────────────────── */}
+          <div className={`shrink-0 transition-all duration-300 ${
+            isEditMode && selectedItem !== null
+              ? "w-72 opacity-100"
+              : isEditMode
+              ? "w-56 opacity-100"
+              : "w-56 opacity-100"
+          }`}>
+            <div className="sticky top-20 space-y-3">
+
+              {/* Settings panel — muncul saat panel dipilih */}
+              {isEditMode && selectedItem !== null && selectedIdx !== null && (
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-blue-200 dark:border-blue-800 shadow-lg overflow-hidden max-h-[calc(100vh-10rem)] flex flex-col">
+                  <WidgetSettingsPanel
+                    item={selectedItem}
+                    index={selectedIdx}
+                    onUpdate={updateWidget}
+                    onRemove={removeWidget}
+                    onClose={() => setSelectedIdx(null)}
+                  />
+                </div>
+              )}
+
+              {/* Edit mode hint saat belum pilih panel */}
+              {isEditMode && selectedItem === null && (
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 text-center">
+                  <Pencil className="w-5 h-5 text-blue-400 mx-auto mb-2" />
+                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">Klik panel untuk setting</p>
+                  <p className="text-[9px] text-blue-400 mt-1">Drag panel untuk pindah posisi. Tarik pojok kanan bawah untuk resize.</p>
+                </div>
+              )}
+
+              {/* Meta panel — selalu tampil */}
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em]">Meta Properties</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Link Status</label>
+                  <div className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border w-fit ${
+                    isOnline
+                      ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border-emerald-100"
+                      : "bg-rose-50 dark:bg-rose-950/30 text-rose-600 border-rose-100"
+                  }`}>
+                    ● {isOnline ? "Online" : "Offline"}
+                  </div>
+                </div>
+
+                {devices.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Registered Devices</label>
+                    <div className="space-y-1">
+                      {devices.map((dv) => (
+                        <div key={dv.device_id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                          <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase truncate">{dv.name}</span>
+                          <span className="text-[8px] font-mono text-slate-400 ml-2 shrink-0">{dv.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Last Ping</label>
+                  <p className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                    {gatewayInfo?.last_ping ? new Date(gatewayInfo.last_ping).toLocaleString("id-ID") : "— Belum ada data —"}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Log Records</label>
+                  <p className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{logs.length}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
