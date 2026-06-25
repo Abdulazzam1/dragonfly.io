@@ -354,11 +354,11 @@ export default function GatewayDetailPage() {
           </div>
 
           {/* ── SIDEBAR ───────────────────────────────────────────────────── */}
-          <div className={`shrink-0 transition-all duration-300 ${
-            isEditMode && selectedItem !== null
+          <div className={`shrink-0 transition-all duration-300 overflow-hidden ${
+            !isEditMode
+              ? "w-0 opacity-0 pointer-events-none"
+              : selectedItem !== null
               ? "w-72 opacity-100"
-              : isEditMode
-              ? "w-56 opacity-100"
               : "w-56 opacity-100"
           }`}>
             <div className="sticky top-20 space-y-3">
