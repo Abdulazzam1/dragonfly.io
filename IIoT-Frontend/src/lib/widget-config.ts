@@ -52,14 +52,29 @@ export const WIDGET_TYPES: {
 ];
 
 // ─── Default grid sizes per type ─────────────────────────────────────────────
+//
+// Grid total = 80 kolom, rowHeight = 80px
+// Layout target:
+//   - Widget kecil (value/gauge/status/trend): w=20 (¼ lebar), h=3 (~240px)
+//   - Widget chart/bar: w=40 (½ lebar), h=4 (~320px)
+//
+// Auto-placement: 4 kolom untuk widget kecil, 2 kolom untuk chart
+// Baris baru otomatis setelah 4 widget kecil atau 2 chart
 
 export function defaultGridPos(type: WidgetType, index: number): GridPos {
   const isWide = type === "chart" || type === "bar";
-  const w = isWide ? 2 : 1;
-  const h = isWide ? 3 : 2;
-  // auto-place: 3 cols
-  const col = index % 3;
-  return { x: col * (isWide ? 2 : 1), y: Math.floor(index / 3) * h, w, h };
+
+  if (isWide) {
+    // Chart: 2 per baris, w=40, h=4
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    return { x: col * 40, y: row * 4, w: 40, h: 4 };
+  } else {
+    // Widget kecil: 4 per baris, w=20, h=3
+    const col = index % 4;
+    const row = Math.floor(index / 4);
+    return { x: col * 20, y: row * 3, w: 20, h: 3 };
+  }
 }
 
 // ─── Size (legacy, masih dipakai untuk fallback) ──────────────────────────────
@@ -100,7 +115,6 @@ export function resolveThresholdColor(
   if (!thresholds || thresholds.length === 0) return baseColor;
   const num = Number(value);
   if (isNaN(num)) return baseColor;
-  // Sort ascending by value, pick highest threshold that num exceeds
   const sorted = [...thresholds].sort((a, b) => a.value - b.value);
   let active = baseColor;
   for (const t of sorted) {
@@ -117,9 +131,9 @@ export function getChartData(item: WidgetItem, logs: any[]) {
   const isMulti  = item.type === "chart" && (item.keys?.length ?? 0) > 1;
 
   const filtered = logs.filter((l) => l.created_at && new Date(l.created_at).getTime() >= cutoff);
-  const sampled  = filtered.length > 200
-    ? filtered.filter((_, i) => i % Math.ceil(filtered.length / 200) === 0)
-    : filtered;
+
+  // Ambil 200 data terakhir agar chart selalu menampilkan data terbaru
+  const sampled = filtered.length > 200 ? filtered.slice(-200) : filtered;
 
   return sampled.map((l) => {
     const time = rangeOpt.ms > 24 * 60 * 60 * 1000
