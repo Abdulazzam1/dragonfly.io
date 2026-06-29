@@ -20,7 +20,6 @@ export interface WidgetItem {
   keys?: string[];
   colors?: string[];
   keyDecimals?: number[];
-  /** Pembagi nilai per key untuk area chart multi-key */
   keyDivisors?: number[];
   label: string;
   type: WidgetType;
@@ -33,6 +32,7 @@ export interface WidgetItem {
   color?: string;
   offColor?: string;
   divisor?: number;
+  decimalPlaces?: number;
   thresholds?: ThresholdItem[];
   gridPos?: GridPos;
 }
