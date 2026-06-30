@@ -97,17 +97,6 @@ export default function DashboardPage() {
     )
     .slice(0, 4);
 
-  const headerBlock = (
-    <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-      <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-        {greeting()} 👋
-      </h1>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-        Here's your network status right now.
-      </p>
-    </div>
-  );
-
   return (
     <div className="relative flex flex-col items-center h-full min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
       {/* MAP Background */}
@@ -116,12 +105,21 @@ export default function DashboardPage() {
       </div>
 
       {/* TOP CENTER PANEL */}
-      <div className="relative z-10 w-full max-w-[340px] flex flex-col gap-3 mt-2">
+      <div className="relative z-10 w-full max-w-[340px] flex flex-col gap-3">
 
-        {/* ── Offline gateway list (header digabung di sini) ── */}
+        {/* Header text (see-through, no box) */}
+        <div className="px-1">
+          <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            {greeting()} 👋
+          </h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Here's your network status right now.
+          </p>
+        </div>
+
+        {/* ── Offline gateway list ── */}
         {!isLoading && recentOffline.length > 0 && (
           <div className="rounded-2xl border border-white/60 dark:border-gray-700/60 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-lg overflow-hidden">
-            {headerBlock}
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
               <WifiOff className="w-3.5 h-3.5 text-rose-500" />
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -157,10 +155,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Active alarms list (header digabung kalau offline kosong) ── */}
+        {/* ── Active alarms list ── */}
         {!isLoading && activeAlarms.length > 0 && (
           <div className="rounded-2xl border border-white/60 dark:border-gray-700/60 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-lg overflow-hidden">
-            {recentOffline.length === 0 && headerBlock}
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
               <BellRing className="w-3.5 h-3.5 text-amber-500" />
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -194,40 +191,18 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── All clear state (header digabung di sini) ── */}
+        {/* ── All clear state ── */}
         {!isLoading && offlineGateways === 0 && activeAlarms.length === 0 && totalGateways > 0 && (
-          <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/30 backdrop-blur-md shadow-lg overflow-hidden">
-            <div className="px-5 py-4 border-b border-emerald-100 dark:border-emerald-900/40">
-              <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                {greeting()} 👋
-              </h1>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                Here's your network status right now.
+          <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/30 backdrop-blur-md px-5 py-4 flex items-center gap-3">
+            <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                All systems normal
+              </p>
+              <p className="text-[11px] text-emerald-600/70 dark:text-emerald-500 mt-0.5">
+                {totalGateways} gateways online · No active alarms
               </p>
             </div>
-            <div className="px-5 py-4 flex items-center gap-3">
-              <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                  All systems normal
-                </p>
-                <p className="text-[11px] text-emerald-600/70 dark:text-emerald-500 mt-0.5">
-                  {totalGateways} gateways online · No active alarms
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Fallback (loading / belum ada gateway sama sekali) ── */}
-        {(isLoading || totalGateways === 0) && (
-          <div className="rounded-2xl border border-white/60 dark:border-gray-700/60 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-lg px-5 py-4">
-            <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              {greeting()} 👋
-            </h1>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              Here's your network status right now.
-            </p>
           </div>
         )}
 
