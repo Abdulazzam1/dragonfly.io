@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Edit2, X, Loader2, Trash2, RefreshCcw, AlertTriangle, Plus, HardDrive, Search, Eye, FolderKanban } from "lucide-react";
+import { Edit2, X, Loader2, Trash2, RefreshCcw, AlertTriangle, Plus, HardDrive, Search, Eye } from "lucide-react";
 import { API_BASE, getAuthHeaders, getLocalUser, isReadOnlyRole } from "@/lib/api";
 
 const DEFAULT_FORM = {
@@ -238,8 +238,7 @@ export default function GatewaysPage() {
                       {gateway.name}
                     </td>
                     <td className="p-4">
-                      <span className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-1 rounded-lg border border-purple-100 dark:border-purple-900/50 flex items-center gap-1 w-fit">
-                        <FolderKanban className="w-2.5 h-2.5" />
+                      <span className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-1 rounded-lg border border-purple-100 dark:border-purple-900/50 w-fit inline-block">
                         {projectsList.find((p) => p.project_id === gateway.project_id)?.display_name ?? `ID: ${gateway.project_id ?? "—"}`}
                       </span>
                     </td>
