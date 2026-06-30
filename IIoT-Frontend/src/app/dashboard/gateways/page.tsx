@@ -244,8 +244,9 @@ export default function GatewaysPage() {
                       </span>
                     </td>
                     <td className="p-4 font-black uppercase tracking-widest text-[9px]">
-                      <span className={`px-2 py-1 rounded-md border ${gateway.status === "online" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40" : "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/40"}`}>
-                        ● {gateway.status}
+                      <span className={`px-2 py-1 rounded-md border inline-flex items-center gap-1.5 whitespace-nowrap leading-none ${gateway.status === "online" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40" : "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/40"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${gateway.status === "online" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                        <span className="leading-none">{gateway.status}</span>
                       </span>
                     </td>
                     <td className="p-4">
