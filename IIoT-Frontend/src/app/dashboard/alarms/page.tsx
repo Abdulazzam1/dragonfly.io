@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Edit2, X, Loader2, Trash2, RefreshCcw, AlertTriangle, Plus, Search, BellRing, ShieldAlert, Tag, CheckCircle2, Network } from "lucide-react";
+import { Edit2, X, Loader2, Trash2, RefreshCcw, AlertTriangle, Plus, Search, BellRing, ShieldAlert, Tag, CheckCircle2, Network, Check, ChevronDown, ChevronUp } from "lucide-react";
+import * as Select from "@radix-ui/react-select";
 import { API_BASE, getAuthHeaders, getUserRole, isReadOnlyRole } from "@/lib/api";
 
 const DEFAULT_FORM = {
@@ -19,6 +20,68 @@ function getAlarmState(alarm: any): "active" | "online" | "offline" {
   if (status === "ACTIVE" || status === "1" || status === 1) return "active";
   if (status === "0" || status === 0 || status === "NORMAL" || status === "RESOLVED") return "online";
   return "offline";
+}
+
+// ─── Reusable styled gateway dropdown (Radix Select, portal-based) ─────────
+function GatewaySelect({
+  value,
+  onValueChange,
+  gatewaysList,
+  placeholder = "Pilih gateway...",
+  focusRing = "focus:ring-blue-600",
+}: {
+  value: string;
+  onValueChange: (val: string) => void;
+  gatewaysList: any[];
+  placeholder?: string;
+  focusRing?: string;
+}) {
+  return (
+    <Select.Root value={value || undefined} onValueChange={onValueChange}>
+      <Select.Trigger
+        className={`w-full p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] font-black border-none ring-1 ring-slate-100 dark:ring-slate-700/50 text-slate-800 dark:text-slate-100 flex items-center justify-between cursor-pointer outline-none focus:ring-2 ${focusRing} data-[placeholder]:text-slate-400`}
+      >
+        <Select.Value placeholder={placeholder} />
+        <Select.Icon>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+        </Select.Icon>
+      </Select.Trigger>
+
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={6}
+          className="z-[80] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden w-[var(--radix-select-trigger-width)] max-h-60"
+        >
+          <Select.ScrollUpButton className="flex items-center justify-center py-1.5 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-default">
+            <ChevronUp className="w-3.5 h-3.5" />
+          </Select.ScrollUpButton>
+
+          <Select.Viewport className="p-1">
+            {gatewaysList.length === 0 && (
+              <div className="px-3 py-2 text-[11px] font-bold text-slate-400">Loading gateways...</div>
+            )}
+            {gatewaysList.map((g) => (
+              <Select.Item
+                key={g.gateway_id}
+                value={String(g.gateway_id)}
+                className="px-3 py-2.5 text-[11px] font-black rounded-lg cursor-pointer outline-none flex items-center justify-between gap-2 text-slate-700 dark:text-slate-200 data-[highlighted]:bg-blue-50 dark:data-[highlighted]:bg-blue-950/40 data-[highlighted]:text-blue-700 dark:data-[highlighted]:text-blue-400 data-[state=checked]:font-black"
+              >
+                <Select.ItemText>{g.name.toUpperCase()} (#ID: {g.gateway_id})</Select.ItemText>
+                <Select.ItemIndicator>
+                  <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+
+          <Select.ScrollDownButton className="flex items-center justify-center py-1.5 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-default">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </Select.ScrollDownButton>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
 }
 
 export default function AlarmsPage() {
@@ -327,8 +390,8 @@ export default function AlarmsPage() {
       {/* ── MODAL: CREATE ALARM ── */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 dark:border-slate-700">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40 rounded-t-2xl">
               <h2 className="font-black text-[11px] uppercase tracking-widest text-slate-800 dark:text-slate-100 italic flex items-center gap-2">
                 <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Register Master Alarm
               </h2>
@@ -343,10 +406,13 @@ export default function AlarmsPage() {
                 <label className="text-[9px] font-black uppercase text-slate-400 ml-1 flex items-center gap-1">
                   <Network className="w-2.5 h-2.5 text-teal-500" /> Bind to Gateway
                 </label>
-                <select className="w-full p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] font-black border-none ring-1 ring-slate-100 dark:ring-slate-700/50 outline-none text-slate-800 dark:text-slate-100 cursor-pointer focus:ring-2 focus:ring-blue-600" value={newAlarmForm.gateway_id} onChange={(e) => setNewAlarmForm({ ...newAlarmForm, gateway_id: e.target.value })} required>
-                  {gatewaysList.length === 0 && <option value="" disabled>Loading gateways...</option>}
-                  {gatewaysList.map((g) => <option key={g.gateway_id} value={g.gateway_id}>{g.name.toUpperCase()} (#ID: {g.gateway_id})</option>)}
-                </select>
+                <GatewaySelect
+                  value={newAlarmForm.gateway_id}
+                  onValueChange={(val) => setNewAlarmForm({ ...newAlarmForm, gateway_id: val })}
+                  gatewaysList={gatewaysList}
+                  placeholder="Pilih gateway..."
+                  focusRing="focus:ring-blue-600"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black uppercase text-slate-400 ml-1">MQTT Telemetry Key Bind</label>
@@ -368,8 +434,8 @@ export default function AlarmsPage() {
       {/* ── MODAL: EDIT ALARM ── */}
       {editingAlarm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 dark:border-slate-700">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40 rounded-t-2xl">
               <h2 className="font-black text-[11px] uppercase tracking-widest text-slate-800 dark:text-slate-100 italic flex items-center gap-2">
                 <BellRing className="w-3.5 h-3.5 text-amber-600" /> Modify Alarm Configuration
               </h2>
@@ -384,9 +450,13 @@ export default function AlarmsPage() {
                 <label className="text-[9px] font-black uppercase text-slate-400 ml-1 flex items-center gap-1">
                   <Network className="w-2.5 h-2.5 text-teal-500" /> Bind to Gateway
                 </label>
-                <select className="w-full p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] font-black border-none ring-1 ring-slate-100 dark:ring-slate-700/50 outline-none text-slate-800 dark:text-slate-100 cursor-pointer focus:ring-2 focus:ring-amber-500" value={editingAlarm.gateway_id ?? ""} onChange={(e) => setEditingAlarm({ ...editingAlarm, gateway_id: parseInt(e.target.value, 10) })} required>
-                  {gatewaysList.map((g) => <option key={g.gateway_id} value={g.gateway_id}>{g.name.toUpperCase()} (#ID: {g.gateway_id})</option>)}
-                </select>
+                <GatewaySelect
+                  value={String(editingAlarm.gateway_id ?? "")}
+                  onValueChange={(val) => setEditingAlarm({ ...editingAlarm, gateway_id: parseInt(val, 10) })}
+                  gatewaysList={gatewaysList}
+                  placeholder="Pilih gateway..."
+                  focusRing="focus:ring-amber-500"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black uppercase text-slate-400 ml-1">MQTT Telemetry Key Bind</label>
