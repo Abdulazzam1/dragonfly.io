@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, desc
 from app.database import get_db
 from app.models import Gateway, Project, TelemetryLog
 from app.routers.auth import get_current_user
@@ -257,6 +258,76 @@ def get_gateway_logs(
     }
 
 
+@router.get("/{gateway_id}/alarms")
+def get_gateway_alarm_logs(
+    gateway_id: int,
+    start_date: Optional[str] = Query(default=None, description="ISO date, e.g. 2026-06-01"),
+    end_date: Optional[str]   = Query(default=None, description="ISO date, e.g. 2026-06-30"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Endpoint riwayat alarm khusus per Gateway (Sub-resource RESTful style).
+    Mendukung server-side pagination dan filter waktu WIB yang sinkron dengan frontend.
+    """
+    from app.models import AlarmHistory  # 👈 Pastikan model AlarmHistory Anda di-import dari lokasi aslinya
+    
+    gateway = db.query(Gateway).filter(Gateway.gateway_id == gateway_id).first()
+    if not gateway:
+        raise HTTPException(status_code=404, detail="Gateway tidak ditemukan")
+
+    query = db.query(AlarmHistory).filter(AlarmHistory.gateway_id == gateway_id)
+
+    # Filter rentang waktu menggunakan objek lokalisasi WIB Asia/Jakarta
+    if start_date:
+        start_dt = WIB.localize(datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S"))
+        query = query.filter(AlarmHistory.triggered_at >= start_dt)
+    if end_date:
+        end_dt = WIB.localize(datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S"))
+        query = query.filter(AlarmHistory.triggered_at <= end_dt)
+
+    total = query.count()
+
+    # Urutkan secara ascending jika mencari rentang tanggal, atau descending (terbaru) jika default
+    order_clause = AlarmHistory.triggered_at.asc() if start_date else AlarmHistory.triggered_at.desc()
+
+    alarms = (
+        query
+        .order_by(order_clause)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return {
+        "status": "success",
+        "data": {
+            "alarms": [
+                {
+                    "id": a.id,
+                    "alarm_id": a.alarm_id,
+                    "gateway_id": a.gateway_id,
+                    "alarm_name": a.alarm_name,
+                    "mqtt_key": a.mqtt_key,
+                    "message": a.message,
+                    "triggered_at": a.triggered_at.isoformat() if a.triggered_at else None,
+                    "verified_at": a.verified_at.isoformat() if a.verified_at else None,
+                    "verified_by": a.with_name if hasattr(a, 'with_name') else a.verified_by, # Handle safetylimit field
+                }
+                for a in alarms
+            ],
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_records": total,
+                "total_pages": (total + page_size - 1) // page_size,
+            }
+        }
+    }
+
+
 @router.put("/{gateway_id}")
 def update_gateway(gateway_id: int, payload: GatewaySchema, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     role = current_user.get("role")
@@ -271,6 +342,9 @@ def update_gateway(gateway_id: int, payload: GatewaySchema, db: Session = Depend
         gateway.project_id = payload.project_id
         gateway.status = payload.status
         gateway.config = payload.config
+        
+        flag_modified(gateway, "config")
+        
         db.commit()
         return {"status": "success", "message": "Gateway berhasil diperbarui"}
     except Exception as e:

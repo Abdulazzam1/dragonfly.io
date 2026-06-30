@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  Calendar, Download, RefreshCcw,
+  Calendar, Download, RefreshCcw, Bell, FileText,
   Loader2, ChevronLeft, ChevronRight, AlertTriangle, Filter, SlidersHorizontal, Cpu, Clock
 } from "lucide-react";
 import { API_BASE, getAuthHeaders, getLocalUser } from "@/lib/api";
@@ -14,7 +14,10 @@ interface Pagination {
   total_pages: number;
 }
 
+type TabType = "gateway_logs" | "alarm_logs";
+
 export default function DataLoggerPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("gateway_logs");
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [gatewaysList, setGatewaysList] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
@@ -73,7 +76,7 @@ export default function DataLoggerPage() {
     setSelectedGateway("");
   }, [selectedProject]);
 
-  // ─── 2. FETCH HISTORICAL LOGS — server-side pagination + filter tanggal ──
+  // ─── 2. FETCH HISTORICAL LOGS (Gateway Logs atau Alarm Logs) ──
   const fetchHistoricalData = useCallback(async (page: number = 1) => {
     if (!selectedProject) return;
 
@@ -95,24 +98,34 @@ export default function DataLoggerPage() {
       if (startDate.trim()) params.set("start_date", startDate);
       if (endDate.trim())   params.set("end_date", endDate);
 
+      // Mengubah endpoint berdasarkan tab yang aktif (gateways/:id/logs atau gateways/:id/alarms)
+      const endpointSuffix = activeTab === "gateway_logs" ? "logs" : "alarms";
+
       if (selectedGateway) {
-        const res = await fetch(`${API_BASE}/gateways/${selectedGateway}/logs?${params}`, {
+        const res = await fetch(`${API_BASE}/gateways/${selectedGateway}/${endpointSuffix}?${params}`, {
           method: "GET", cache: "no-store", headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error(`Gagal memuat data. Status: ${res.status}`);
         const json = await res.json();
-        setLogs(json.data?.logs ?? []);
+        setLogs(json.data?.[endpointSuffix] ?? json.data?.logs ?? []);
         setPagination(json.data?.pagination ?? { page: 1, page_size: 25, total_records: 0, total_pages: 0 });
       } else {
         const results = await Promise.all(
           gatewaysToQuery.map((gwId) =>
-            fetch(`${API_BASE}/gateways/${gwId}/logs?${params}`, {
+            fetch(`${API_BASE}/gateways/${gwId}/${endpointSuffix}?${params}`, {
               method: "GET", cache: "no-store", headers: getAuthHeaders(),
-            }).then((r) => (r.ok ? r.json() : { data: { logs: [] } }))
+            }).then((r) => (r.ok ? r.json() : { data: { [endpointSuffix]: [] } }))
           )
         );
-        const combined = results.flatMap((r) => r.data?.logs ?? []);
-        combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const combined = results.flatMap((r) => r.data?.[endpointSuffix] ?? r.data?.logs ?? []);
+        
+        // Pengurutan berdasarkan tanggal (created_at untuk logs biasa, triggered_at untuk alarms)
+        combined.sort((a, b) => {
+          const timeA = new Date(a.created_at || a.triggered_at).getTime();
+          const timeB = new Date(b.created_at || b.triggered_at).getTime();
+          return timeB - timeA;
+        });
+
         setLogs(combined);
         setPagination({
           page: 1,
@@ -127,16 +140,17 @@ export default function DataLoggerPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProject, selectedGateway, startDate, endDate, gatewaysInSelectedProject]);
+  }, [selectedProject, selectedGateway, startDate, endDate, gatewaysInSelectedProject, activeTab]);
 
   useEffect(() => {
     if (selectedProject) fetchHistoricalData(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject, selectedGateway, startDate, endDate]);
+  }, [selectedProject, selectedGateway, startDate, endDate, activeTab]);
 
+  // Mengambil channel dinamis dari objek JSON payload (hanya berlaku di tab gateway_logs)
   const dynamicChannels = Array.from(
     new Set(logs.flatMap((log) => {
-      if (!log.payload || typeof log.payload !== "object") return [];
+      if (activeTab !== "gateway_logs" || !log.payload || typeof log.payload !== "object") return [];
       return Object.keys(log.payload);
     }))
   );
@@ -151,26 +165,48 @@ export default function DataLoggerPage() {
     const gwLabel = selectedGateway ? gatewayName(Number(selectedGateway)) : "SEMUA_GATEWAY";
 
     let csv = "data:text/csv;charset=utf-8,";
-    csv += `AUDIT REPORT TELEMETRI DATA LOGGER: ${String(projectName).toUpperCase()} - ${gwLabel.toUpperCase()}\n`;
-    csv += ["No", "Timestamp", "Gateway", ...dynamicChannels].join(",") + "\n";
+    
+    if (activeTab === "gateway_logs") {
+      csv += `AUDIT REPORT TELEMETRI DATA LOGGER: ${String(projectName).toUpperCase()} - ${gwLabel.toUpperCase()}\n`;
+      csv += ["No", "Timestamp", "Gateway", ...dynamicChannels].join(",") + "\n";
 
-    logs.forEach((log, i) => {
-      const formattedTime = log.created_at ? new Date(log.created_at).toLocaleString("id-ID").replace(/,/g, "") : "—";
-      const row = [
-        i + 1,
-        `"${formattedTime}"`,
-        gatewayName(log.gateway_id),
-        ...dynamicChannels.map((ch) => {
-          const val = log.payload?.[ch];
-          return val !== undefined ? (typeof val === "object" ? JSON.stringify(val).replace(/,/g, " ") : val) : "-";
-        }),
-      ];
-      csv += row.join(",") + "\n";
-    });
+      logs.forEach((log, i) => {
+        const formattedTime = log.created_at ? new Date(log.created_at).toLocaleString("id-ID").replace(/,/g, "") : "—";
+        const row = [
+          i + 1,
+          `"${formattedTime}"`,
+          gatewayName(log.gateway_id),
+          ...dynamicChannels.map((ch) => {
+            const val = log.payload?.[ch];
+            return val !== undefined ? (typeof val === "object" ? JSON.stringify(val).replace(/,/g, " ") : val) : "-";
+          }),
+        ];
+        csv += row.join(",") + "\n";
+      });
+    } else {
+      csv += `AUDIT REPORT ALARM HISTORY: ${String(projectName).toUpperCase()} - ${gwLabel.toUpperCase()}\n`;
+      csv += ["No", "Triggered At", "Gateway", "Alarm Name", "MQTT Key", "Message", "Verified At", "Verified By"].join(",") + "\n";
+
+      logs.forEach((log, i) => {
+        const trigTime = log.triggered_at ? new Date(log.triggered_at).toLocaleString("id-ID").replace(/,/g, "") : "—";
+        const verTime = log.verified_at ? new Date(log.verified_at).toLocaleString("id-ID").replace(/,/g, "") : "—";
+        const row = [
+          i + 1,
+          `"${trigTime}"`,
+          gatewayName(log.gateway_id),
+          `"${log.alarm_name ?? "—"}"`,
+          `"${log.mqtt_key ?? "—"}"`,
+          `"${(log.message ?? "").replace(/"/g, '""')}"`,
+          `"${verTime}"`,
+          `"${log.verified_by ?? "—"}"`,
+        ];
+        csv += row.join(",") + "\n";
+      });
+    }
 
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", `DATA_LOGGER_PROJECT_${selectedProject}${selectedGateway ? `_GW${selectedGateway}` : ""}.csv`);
+    link.setAttribute("download", `DATA_LOGGER_${activeTab.toUpperCase()}_PROJECT_${selectedProject}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -182,6 +218,29 @@ export default function DataLoggerPage() {
 
   return (
     <div className="p-6 bg-transparent min-h-screen font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 space-y-5">
+
+      {/* Tab Selector Segment */}
+      <div className="flex gap-1.5 p-1 bg-slate-200/50 dark:bg-slate-800/60 w-fit rounded-xl border border-slate-200 dark:border-slate-700 transition-all">
+        {[
+          { id: "gateway_logs", label: "Gateway Telemetry", icon: FileText },
+          { id: "alarm_logs", label: "Alarm History Records", icon: Bell },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id as TabType);
+              setLogs([]);
+            }}
+            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer border-none ${
+              activeTab === tab.id
+                ? "bg-white dark:bg-blue-600 text-blue-600 dark:text-white shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-slate-700/40"
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" /> {tab.label}
+          </button>
+        ))}
+      </div>
 
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
 
@@ -266,7 +325,8 @@ export default function DataLoggerPage() {
         {/* ── TABLE INFO BAR ── */}
         <div className="px-4 py-2.5 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between">
           <span className="font-black text-[9px] uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-            <SlidersHorizontal className="w-3 h-3 text-blue-600 dark:text-blue-400" /> Data Logger Channel Transmissions
+            <SlidersHorizontal className="w-3 h-3 text-blue-600 dark:text-blue-400" /> 
+            {activeTab === "gateway_logs" ? "Data Logger Channel Transmissions" : "System Core Alarm Anomalies History"}
           </span>
           <span className="text-[9px] font-mono font-black uppercase text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/50">
             Total Records: {pagination.total_records} Rows
@@ -279,26 +339,40 @@ export default function DataLoggerPage() {
             <thead>
               <tr className="bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700">
                 <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-14 text-center">Index</th>
-                <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-36"><div className="flex items-center gap-1"><Clock className="w-3 h-3" /> Timestamp</div></th>
+                <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-36">
+                  <div className="flex items-center gap-1"><Clock className="w-3 h-3" /> Timestamp</div>
+                </th>
                 <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-40">Gateway</th>
-                {dynamicChannels.map((ch) => (
-                  <th key={ch} className="p-4 text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60 bg-blue-50/20 dark:bg-blue-950/10">
-                    {ch.replace(/_/g, " ")}
-                  </th>
-                ))}
+                
+                {/* Header dinamis conditional per tab */}
+                {activeTab === "gateway_logs" ? (
+                  dynamicChannels.map((ch) => (
+                    <th key={ch} className="p-4 text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60 bg-blue-50/20 dark:bg-blue-950/10">
+                      {ch.replace(/_/g, " ")}
+                    </th>
+                  ))
+                ) : (
+                  <>
+                    <th className="p-4 text-[9px] font-black text-rose-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60 bg-rose-50/10">Alarm Name</th>
+                    <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60">MQTT Key</th>
+                    <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60 w-64">Alert Message</th>
+                    <th className="p-4 text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60">Verified At</th>
+                    <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60">Operator</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/40 text-[11px] font-mono text-slate-600 dark:text-slate-400">
               {isLoading ? (
                 <tr>
-                  <td colSpan={3 + dynamicChannels.length} className="p-28 text-center font-sans">
+                  <td colSpan={activeTab === "gateway_logs" ? 3 + dynamicChannels.length : 8} className="p-28 text-center font-sans">
                     <Loader2 className="w-7 h-7 animate-spin text-blue-600 dark:text-blue-400 mx-auto" />
                     <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-3">Re-indexing telemetry records dari PostgreSQL...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={3 + dynamicChannels.length} className="p-16 text-center font-sans">
+                  <td colSpan={activeTab === "gateway_logs" ? 3 + dynamicChannels.length : 8} className="p-16 text-center font-sans">
                     <AlertTriangle className="w-4 h-4 text-rose-400 mx-auto mb-2" />
                     <p className="text-rose-500 dark:text-rose-400 font-bold text-[11px] uppercase italic">{error}</p>
                   </td>
@@ -310,26 +384,40 @@ export default function DataLoggerPage() {
                       {(pagination.page - 1) * pagination.page_size + index + 1}
                     </td>
                     <td className="p-4 text-slate-700 dark:text-slate-300 font-sans whitespace-nowrap">
-                      {log.created_at ? new Date(log.created_at).toLocaleString("id-ID") : "—"}
+                      {new Date(log.created_at || log.triggered_at).toLocaleString("id-ID")}
                     </td>
                     <td className="p-4 font-sans text-slate-800 dark:text-slate-300 font-black uppercase tracking-tight text-[10px]">
                       {gatewayName(log.gateway_id)}
                     </td>
-                    {dynamicChannels.map((ch) => {
-                      const val = log.payload?.[ch];
-                      return (
-                        <td key={ch} className="p-4 font-black border-l border-slate-100 dark:border-slate-700/40 text-slate-800 dark:text-slate-200">
-                          {val !== undefined ? (typeof val === "object" ? JSON.stringify(val) : String(val)) : (
-                            <span className="text-slate-300 dark:text-slate-600">-</span>
-                          )}
+
+                    {/* Render data berdasarkan tipe tab aktif */}
+                    {activeTab === "gateway_logs" ? (
+                      dynamicChannels.map((ch) => {
+                        const val = log.payload?.[ch];
+                        return (
+                          <td key={ch} className="p-4 font-black border-l border-slate-100 dark:border-slate-700/40 text-slate-800 dark:text-slate-200">
+                            {val !== undefined ? (typeof val === "object" ? JSON.stringify(val) : String(val)) : (
+                              <span className="text-slate-300 dark:text-slate-600">-</span>
+                            )}
+                          </td>
+                        );
+                      })
+                    ) : (
+                      <>
+                        <td className="p-4 font-sans font-black uppercase text-rose-600 dark:text-rose-400 border-l border-slate-100 dark:border-slate-700/40">{log.alarm_name || "—"}</td>
+                        <td className="p-4 text-slate-500 font-bold border-l border-slate-100 dark:border-slate-700/40">{log.mqtt_key || "—"}</td>
+                        <td className="p-4 text-slate-700 dark:text-slate-300 border-l border-slate-100 dark:border-slate-700/40 font-sans truncate max-w-xs" title={log.message}>{log.message || "—"}</td>
+                        <td className="p-4 font-sans border-l border-slate-100 dark:border-slate-700/40 text-emerald-600 dark:text-emerald-400">
+                          {log.verified_at ? new Date(log.verified_at).toLocaleString("id-ID") : <span className="text-amber-500 font-bold">UNVERIFIED</span>}
                         </td>
-                      );
-                    })}
+                        <td className="p-4 font-sans font-bold uppercase text-slate-700 dark:text-slate-400 border-l border-slate-100 dark:border-slate-700/40">{log.verified_by || "—"}</td>
+                      </>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3 + dynamicChannels.length} className="p-20 text-center text-slate-400 dark:text-slate-500 font-sans text-[9px] font-black uppercase italic tracking-[0.2em]">
+                  <td colSpan={activeTab === "gateway_logs" ? 3 + dynamicChannels.length : 8} className="p-20 text-center font-sans text-slate-400 dark:text-slate-500 text-[9px] font-black uppercase italic tracking-[0.2em]">
                     No historical logs found within this date parameters
                   </td>
                 </tr>
@@ -338,7 +426,7 @@ export default function DataLoggerPage() {
           </table>
         </div>
 
-        {/* ── PAGINATION (server-side) dengan Jump to Page ── */}
+        {/* ── PAGINATION (server-side) ── */}
         {pagination.total_pages > 1 && (
           <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between font-sans flex-wrap gap-3">
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
