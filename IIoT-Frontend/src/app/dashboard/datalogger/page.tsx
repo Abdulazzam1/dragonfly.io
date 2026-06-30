@@ -222,7 +222,7 @@ export default function DataLoggerPage() {
       {/* Tab Selector Segment */}
       <div className="flex gap-1.5 p-1 bg-slate-200/50 dark:bg-slate-800/60 w-fit rounded-xl border border-slate-200 dark:border-slate-700 transition-all">
         {[
-          { id: "gateway_logs", label: "Gateway Telemetry", icon: FileText },
+          { id: "gateway_logs", label: "Gateway Telemetry Records", icon: FileText },
           { id: "alarm_logs", label: "Alarm History Records", icon: Bell },
         ].map((tab) => (
           <button
@@ -354,7 +354,6 @@ export default function DataLoggerPage() {
                 ) : (
                   <>
                     <th className="p-4 text-[9px] font-black text-rose-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60 bg-rose-50/10">Alarm Name</th>
-                    <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60">MQTT Key</th>
                     <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60 w-64">Alert Message</th>
                     <th className="p-4 text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60">Verified At</th>
                     <th className="p-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-l border-slate-100 dark:border-slate-700/60">Operator</th>
@@ -405,7 +404,6 @@ export default function DataLoggerPage() {
                     ) : (
                       <>
                         <td className="p-4 font-sans font-black uppercase text-rose-600 dark:text-rose-400 border-l border-slate-100 dark:border-slate-700/40">{log.alarm_name || "—"}</td>
-                        <td className="p-4 text-slate-500 font-bold border-l border-slate-100 dark:border-slate-700/40">{log.mqtt_key || "—"}</td>
                         <td className="p-4 text-slate-700 dark:text-slate-300 border-l border-slate-100 dark:border-slate-700/40 font-sans truncate max-w-xs" title={log.message}>{log.message || "—"}</td>
                         <td className="p-4 font-sans border-l border-slate-100 dark:border-slate-700/40 text-emerald-600 dark:text-emerald-400">
                           {log.verified_at ? new Date(log.verified_at).toLocaleString("id-ID") : <span className="text-amber-500 font-bold">UNVERIFIED</span>}
