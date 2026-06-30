@@ -279,7 +279,7 @@ function AreaDisplay({ data, color, item }: { data: any[]; color: string; item: 
             allowEscapeViewBox={{ x: false, y: false }}
             contentStyle={{ fontSize: "10px", fontWeight: 700, borderRadius: "10px", border: "1px solid #e2e8f0", padding: "6px 10px", backgroundColor: "#fff" }}
             formatter={(value: any, name: string) => [
-              typeof value === "number" ? String(parseFloat(value.toPrecision(10))) : value,
+              typeof value === "number" ? String(parseFloat(value.toFixed(1))) : value,
               isMulti ? name : item.key,
             ]}
             labelFormatter={(idx) => formatTickTime(indexed[Number(idx)]?.time)}
@@ -310,7 +310,7 @@ function BarDisplay({ data, color, item }: { data: any[]; color: string; item: W
             allowEscapeViewBox={{ x: false, y: false }}
             contentStyle={{ fontSize: "10px", fontWeight: 700, borderRadius: "10px", border: "1px solid #e2e8f0", padding: "4px 8px", backgroundColor: "#fff" }}
             formatter={(value: any) => [
-              typeof value === "number" ? String(parseFloat(value.toPrecision(10))) : value,
+              typeof value === "number" ? String(parseFloat(value.toFixed(1))) : value,
               item.key || "val",
             ]}
             labelFormatter={(idx) => formatTickTime(indexed[Number(idx)]?.time)}
