@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Edit2, X, Loader2, Trash2, RefreshCcw, Building2, MapPin, AlertTriangle, Plus, Search } from "lucide-react";
+import { Eye, Edit2, X, Loader2, Trash2, RefreshCcw, Building2, MapPin, AlertTriangle, Plus, Search, Check, ChevronDown, ChevronUp } from "lucide-react";
+import * as Select from "@radix-ui/react-select";
 import { AssetMap } from "@/components/maps/AssetMap";
 import { API_BASE, getAuthHeaders, getLocalUser, isReadOnlyRole } from "@/lib/api";
 
@@ -12,6 +13,66 @@ const DEFAULT_NEW_FORM = {
   latitude: "-6.1944",
   longitude: "106.8229",
 };
+
+// ─── Reusable styled company dropdown (Radix Select, portal-based) ─────────
+function CompanySelect({
+  value,
+  onValueChange,
+  companiesList,
+  placeholder = "Pilih company...",
+}: {
+  value: string;
+  onValueChange: (val: string) => void;
+  companiesList: any[];
+  placeholder?: string;
+}) {
+  return (
+    <Select.Root value={value || undefined} onValueChange={onValueChange}>
+      <Select.Trigger
+        className="w-full p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] font-black border-none ring-1 ring-slate-100 dark:ring-slate-700/50 text-slate-800 dark:text-slate-200 flex items-center justify-between cursor-pointer outline-none focus:ring-2 focus:ring-blue-600 data-[placeholder]:text-slate-400"
+      >
+        <Select.Value placeholder={placeholder} />
+        <Select.Icon>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+        </Select.Icon>
+      </Select.Trigger>
+
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={6}
+          className="z-[80] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden w-[var(--radix-select-trigger-width)] max-h-60"
+        >
+          <Select.ScrollUpButton className="flex items-center justify-center py-1.5 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-default">
+            <ChevronUp className="w-3.5 h-3.5" />
+          </Select.ScrollUpButton>
+
+          <Select.Viewport className="p-1">
+            {companiesList.length === 0 && (
+              <div className="px-3 py-2 text-[11px] font-bold text-slate-400">Loading companies...</div>
+            )}
+            {companiesList.map((company) => (
+              <Select.Item
+                key={company.id}
+                value={String(company.id)}
+                className="px-3 py-2.5 text-[11px] font-black rounded-lg cursor-pointer outline-none flex items-center justify-between gap-2 text-slate-700 dark:text-slate-200 data-[highlighted]:bg-blue-50 dark:data-[highlighted]:bg-blue-950/40 data-[highlighted]:text-blue-700 dark:data-[highlighted]:text-blue-400 data-[state=checked]:font-black"
+              >
+                <Select.ItemText>{company.name.toUpperCase()}</Select.ItemText>
+                <Select.ItemIndicator>
+                  <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+
+          <Select.ScrollDownButton className="flex items-center justify-center py-1.5 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-default">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </Select.ScrollDownButton>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -401,21 +462,12 @@ export default function ProjectsPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 ml-1">Assign Company Tenant</label>
-                <select
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] font-black border-none ring-1 ring-slate-100 dark:ring-slate-700/50 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-600 outline-none cursor-pointer"
+                <CompanySelect
                   value={newProjectForm.company_id}
-                  onChange={(e) => setNewProjectForm({ ...newProjectForm, company_id: e.target.value })}
-                  required
-                >
-                  {companiesList.length === 0 && (
-                    <option value="" disabled>Loading companies...</option>
-                  )}
-                  {companiesList.map((company) => (
-                    <option key={company.id} value={String(company.id)}>
-                      {company.name.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(val) => setNewProjectForm({ ...newProjectForm, company_id: val })}
+                  companiesList={companiesList}
+                  placeholder="Pilih company..."
+                />
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">
@@ -511,18 +563,12 @@ export default function ProjectsPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 ml-1 tracking-widest">Tenant Owner Bind</label>
-                <select
+                <CompanySelect
                   value={String(editingProject.company_id ?? "")}
-                  onChange={(e) => setEditingProject({ ...editingProject, company_id: e.target.value })}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] font-black border-none ring-1 ring-slate-100 dark:ring-slate-700/50 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-600 outline-none cursor-pointer"
-                  required
-                >
-                  {companiesList.map((company) => (
-                    <option key={company.id} value={String(company.id)}>
-                      {company.name.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(val) => setEditingProject({ ...editingProject, company_id: val })}
+                  companiesList={companiesList}
+                  placeholder="Pilih company..."
+                />
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">

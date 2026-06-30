@@ -393,7 +393,7 @@ export default function AlarmsPage() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 dark:border-slate-700">
             <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40 rounded-t-2xl">
               <h2 className="font-black text-[11px] uppercase tracking-widest text-slate-800 dark:text-slate-100 italic flex items-center gap-2">
-                <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Register Master Alarm
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Add new alarm
               </h2>
               <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 border-none bg-transparent cursor-pointer"><X className="w-3.5 h-3.5" /></button>
             </div>
