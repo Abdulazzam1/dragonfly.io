@@ -107,7 +107,7 @@ export default function Error404Page() {
 
         <button
           onClick={() => router.push(backTarget)}
-          className="mt-8 px-6 py-3 bg-slate-800 hover:bg-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-100 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-slate-700 shadow-lg"
+          className="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 dark:bg-slate-800 dark:hover:bg-slate-700 text-white dark:text-slate-100 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-blue-600 dark:border-slate-700 shadow-lg"
         >
           {backTarget === "/login" ? "Back to Login" : "Back to Home Page"}
         </button>
