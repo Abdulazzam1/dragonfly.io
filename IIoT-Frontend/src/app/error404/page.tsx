@@ -57,63 +57,63 @@ export default function Error404Page() {
   const reason = REASONS[reasonKey] ?? DEFAULT_REASON;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 flex flex-col items-center justify-center px-6">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center px-6">
 
       {/* ── Decorative grid pattern, corners ─────────────────────────────── */}
       <div
-        className="pointer-events-none absolute -top-4 -right-4 w-72 h-72 opacity-40"
+        className="pointer-events-none absolute -top-4 -right-4 w-72 h-72 opacity-70 dark:opacity-40"
         style={{
           backgroundImage:
-            "linear-gradient(to right, rgba(148,163,184,0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.15) 1px, transparent 1px)",
+            "linear-gradient(to right, rgba(100,116,139,0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(100,116,139,0.15) 1px, transparent 1px)",
           backgroundSize: "36px 36px",
           maskImage: "linear-gradient(to bottom left, black 30%, transparent 75%)",
           WebkitMaskImage: "linear-gradient(to bottom left, black 30%, transparent 75%)",
         }}
       >
-        <div className="absolute top-[72px] right-[108px] w-9 h-9 bg-slate-800/60 rounded-sm" />
-        <div className="absolute top-[144px] right-[36px] w-9 h-9 bg-slate-800/60 rounded-sm" />
+        <div className="absolute top-[72px] right-[108px] w-9 h-9 bg-slate-200/60 dark:bg-slate-800/60 rounded-sm" />
+        <div className="absolute top-[144px] right-[36px] w-9 h-9 bg-slate-200/60 dark:bg-slate-800/60 rounded-sm" />
       </div>
       <div
-        className="pointer-events-none absolute -bottom-4 -left-4 w-72 h-72 opacity-40"
+        className="pointer-events-none absolute -bottom-4 -left-4 w-72 h-72 opacity-70 dark:opacity-40"
         style={{
           backgroundImage:
-            "linear-gradient(to right, rgba(148,163,184,0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.15) 1px, transparent 1px)",
+            "linear-gradient(to right, rgba(100,116,139,0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(100,116,139,0.15) 1px, transparent 1px)",
           backgroundSize: "36px 36px",
           maskImage: "linear-gradient(to top right, black 30%, transparent 75%)",
           WebkitMaskImage: "linear-gradient(to top right, black 30%, transparent 75%)",
         }}
       >
-        <div className="absolute bottom-[72px] left-[108px] w-9 h-9 bg-slate-800/60 rounded-sm" />
-        <div className="absolute bottom-[144px] left-[36px] w-9 h-9 bg-slate-800/60 rounded-sm" />
+        <div className="absolute bottom-[72px] left-[108px] w-9 h-9 bg-slate-200/60 dark:bg-slate-800/60 rounded-sm" />
+        <div className="absolute bottom-[144px] left-[36px] w-9 h-9 bg-slate-200/60 dark:bg-slate-800/60 rounded-sm" />
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
       <div className="relative flex flex-col items-center text-center">
-        <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-100 uppercase">
+        <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-800 dark:text-slate-100 uppercase">
           {reason.title === DEFAULT_REASON.title ? "Error" : reason.title}
         </h1>
 
         <div className="mt-8 flex items-center justify-center gap-3 sm:gap-6">
           <span className="text-[9rem] sm:text-[13rem] font-black text-blue-500 leading-none select-none">4</span>
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-blue-500 bg-blue-500/10 flex items-center justify-center shrink-0">
-            <Frown className="w-11 h-11 sm:w-12 sm:h-12 text-blue-400" strokeWidth={2.5} />
+            <Frown className="w-11 h-11 sm:w-12 sm:h-12 text-blue-500 dark:text-blue-400" strokeWidth={2.5} />
           </div>
           <span className="text-[9rem] sm:text-[13rem] font-black text-blue-500 leading-none select-none">4</span>
         </div>
 
-        <p className="mt-8 max-w-md text-sm sm:text-base font-medium text-slate-400">
+        <p className="mt-8 max-w-md text-sm sm:text-base font-medium text-slate-500 dark:text-slate-400">
           {reason.message(projectId)}
         </p>
 
         <button
           onClick={() => router.push(backTarget)}
-          className="mt-8 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-slate-700 shadow-lg"
+          className="mt-8 px-6 py-3 bg-slate-800 hover:bg-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-100 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-slate-700 shadow-lg"
         >
           {backTarget === "/login" ? "Back to Login" : "Back to Home Page"}
         </button>
       </div>
 
-      <p className="relative mt-16 text-xs text-slate-500">
+      <p className="relative mt-16 text-xs text-slate-400 dark:text-slate-500">
         © {new Date().getFullYear()} · Dragonfly.io
       </p>
     </div>
