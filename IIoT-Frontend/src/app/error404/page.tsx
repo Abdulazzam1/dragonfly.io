@@ -16,27 +16,27 @@ import { Frown } from "lucide-react";
 
 const REASONS: Record<string, { title: string; message: (projectId: string | null) => string }> = {
   "no-gateway": {
-    title: "Belum Ada Gateway",
+    title: "No Gateway Yet",
     message: (projectId) =>
-      `Project ${projectId ? `#${projectId}` : ""} belum punya gateway yang terhubung. Tambahkan gateway dulu untuk mulai melihat data telemetri.`,
+      `Project ${projectId ? `#${projectId}` : ""} doesn't have a gateway connected yet. Add a gateway first to start viewing telemetry data.`,
   },
   "load-failed": {
-    title: "Gagal Memuat Data",
-    message: () => "Terjadi masalah saat mengambil data dari server. Coba muat ulang halaman ini.",
+    title: "Failed to Load Data",
+    message: () => "Something went wrong while fetching data from the server. Try reloading this page.",
   },
   "session-expired": {
-    title: "Sesi Berakhir",
-    message: () => "Sesi login kamu sudah habis. Silakan login kembali untuk melanjutkan.",
+    title: "Session Expired",
+    message: () => "Your login session has expired. Please log in again to continue.",
   },
   "unauthorized": {
-    title: "Akses Ditolak",
-    message: () => "Kamu tidak punya izin untuk mengakses halaman ini.",
+    title: "Access Denied",
+    message: () => "You don't have permission to access this page.",
   },
 };
 
 const DEFAULT_REASON = {
-  title: "Halaman Tidak Ditemukan",
-  message: () => "Kami tidak bisa menemukan halaman atau data yang kamu cari.",
+  title: "Page Not Found",
+  message: () => "We couldn't find the page or data you're looking for.",
 };
 
 export default function Error404Page() {
@@ -109,7 +109,7 @@ export default function Error404Page() {
           onClick={() => router.push(backTarget)}
           className="mt-8 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-slate-700 shadow-lg"
         >
-          {backTarget === "/login" ? "Kembali ke Halaman Login" : "Kembali ke Halaman Utama"}
+          {backTarget === "/login" ? "Back to Login" : "Back to Home Page"}
         </button>
       </div>
 
