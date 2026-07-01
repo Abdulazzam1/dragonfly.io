@@ -17,8 +17,8 @@ import { Frown } from "lucide-react";
 const REASONS: Record<string, { title: string; message: (projectId: string | null) => string }> = {
   "no-gateway": {
     title: "No Gateway Yet",
-    message: (projectId) =>
-      `Project ${projectId ? `#${projectId}` : ""} doesn't have a gateway connected yet. Add a gateway first to start viewing telemetry data.`,
+    message: () =>
+      "This project doesn't have a gateway connected yet. Add a gateway first to start viewing telemetry data.",
   },
   "load-failed": {
     title: "Failed to Load Data",
