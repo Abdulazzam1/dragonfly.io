@@ -24,6 +24,14 @@ const REASONS: Record<string, { title: string; message: (projectId: string | nul
     title: "Gagal Memuat Data",
     message: () => "Terjadi masalah saat mengambil data dari server. Coba muat ulang halaman ini.",
   },
+  "session-expired": {
+    title: "Sesi Berakhir",
+    message: () => "Sesi login kamu sudah habis. Silakan login kembali untuk melanjutkan.",
+  },
+  "unauthorized": {
+    title: "Akses Ditolak",
+    message: () => "Kamu tidak punya izin untuk mengakses halaman ini.",
+  },
 };
 
 const DEFAULT_REASON = {
@@ -37,7 +45,14 @@ export default function Error404Page() {
 
   const reasonKey = searchParams.get("reason") ?? "";
   const projectId = searchParams.get("projectId");
-  const backTarget = searchParams.get("back") ?? "/dashboard/projects";
+
+  // No explicit `back` param → guess a safe default from the reason itself,
+  // rather than always falling back to a dashboard route. A pre-login error
+  // (e.g. "session-expired") should never bounce toward /dashboard/*, since
+  // the auth guard there would just bounce it again toward /login.
+  const AUTH_REASONS = new Set(["session-expired", "unauthorized", "login-failed"]);
+  const fallbackBack = AUTH_REASONS.has(reasonKey) ? "/login" : "/dashboard/projects";
+  const backTarget = searchParams.get("back") ?? fallbackBack;
 
   const reason = REASONS[reasonKey] ?? DEFAULT_REASON;
 
@@ -94,7 +109,7 @@ export default function Error404Page() {
           onClick={() => router.push(backTarget)}
           className="mt-8 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-slate-700 shadow-lg"
         >
-          Kembali ke Halaman Utama
+          {backTarget === "/login" ? "Kembali ke Halaman Login" : "Kembali ke Halaman Utama"}
         </button>
       </div>
 
