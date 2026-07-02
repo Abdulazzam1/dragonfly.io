@@ -10,7 +10,7 @@ class MessageHandler:
         if not payload_str or not payload_str.strip():
             print(f"⚠️ Payload kosong diabaikan: {topic}")
             return
-    
+
         try:
             data = json.loads(payload_str)
         except json.JSONDecodeError:
@@ -20,7 +20,7 @@ class MessageHandler:
         if not data or not isinstance(data, dict):
             print(f"⚠️ Payload kosong/invalid diabaikan: {topic}")
             return
-     
+
         parts = topic.split("/")
         hmi_code = parts[-1] if parts else None
 
@@ -30,11 +30,11 @@ class MessageHandler:
 
         db = SessionLocal()
         try:
-            # Lookup gateway berdasarkan hmi_code (Terminal ID dinamis dari HMI)
             gateway = db.query(Gateway).filter(Gateway.hmi_code == str(hmi_code)).first()
 
             if not gateway:
-                print(f"⚠️ HMI Code '{hmi_code}' belum terdaftar sebagai Gateway. Data diabaikan.")
+                # 🌟 Ditambah: tampilkan hmi_code yang dicari biar gampang dicocokkan ke DB
+                print(f"⚠️ HMI Code '{hmi_code}' (topic={topic}) belum terdaftar sebagai Gateway. Data diabaikan.")
                 return
 
             IngestionService.process(db, gateway, data)

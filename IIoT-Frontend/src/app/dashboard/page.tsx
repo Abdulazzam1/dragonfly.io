@@ -93,45 +93,75 @@ export default function DashboardPage() {
       </div>
 
       {/* TOP CENTER PANEL */}
-      <div className="relative z-10 w-full max-w-[340px]">
+      <div className="relative z-10 w-full max-w-[340px] flex flex-col gap-3">
 
-        {!isLoading && (
-          <div
-            className={
-              isAllClear
-                ? "rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/30 backdrop-blur-md shadow-lg px-5 py-4 flex items-center gap-3"
-                : "rounded-2xl border border-white/60 dark:border-gray-700/60 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-lg px-5 py-4 flex items-center gap-3"
-            }
-          >
-            {isAllClear ? (
-              <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-            )}
-
+        {!isLoading && isAllClear && (
+          <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/30 backdrop-blur-md shadow-lg px-5 py-4 flex items-center gap-3">
+            <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
             <div className="min-w-0">
-              {isAllClear ? (
-                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                  {greeting()} · All systems online
-                </p>
-              ) : (
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {greeting()} · {offlineGateways > 0 ? `${offlineGateways} gateway offline` : ""}
-                  {offlineGateways > 0 && activeAlarms.length > 0 ? ", " : ""}
-                  {activeAlarms.length > 0 ? `${activeAlarms.length} alarm aktif` : ""}
-                </p>
-              )}
-              <p
-                className={
-                  isAllClear
-                    ? "text-[11px] text-emerald-600/70 dark:text-emerald-500 mt-0.5"
-                    : "text-[11px] text-gray-400 mt-0.5"
-                }
-              >
-                {totalGateways} gateways online
+              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                {greeting()} · All systems online
+              </p>
+              <p className="text-[11px] text-emerald-600/70 dark:text-emerald-500 mt-0.5">
+                {onlineGateways} of {totalGateways} gateway{totalGateways !== 1 ? "s" : ""} online
               </p>
             </div>
           </div>
+        )}
+
+        {!isLoading && !isAllClear && (
+          <>
+            {/* Box khusus gateway offline */}
+            {offlineGateways > 0 && (
+              <div className="rounded-2xl border border-white/60 dark:border-gray-700/60 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-lg px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <WifiOff className="w-4 h-4 text-amber-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {greeting()} · {offlineGateways} gateway{offlineGateways !== 1 ? "s" : ""} offline
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {onlineGateways} of {totalGateways} gateway{totalGateways !== 1 ? "s" : ""} online
+                    </p>
+                  </div>
+                </div>
+
+                {recentOffline.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-1.5 border-t border-gray-100 dark:border-gray-800 pt-3">
+                    {recentOffline.map((g: any) => (
+                      <div key={g.gateway_id} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-700 dark:text-gray-300 truncate">
+                          {g.name ?? `Gateway #${g.gateway_id}`}
+                        </span>
+                        <span className="text-gray-400 shrink-0 ml-2">
+                          {timeAgo(g.last_ping)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Box khusus alarm aktif */}
+            {activeAlarms.length > 0 && (
+              <Link
+                href="/alarms"
+                className="rounded-2xl border border-rose-100 dark:border-rose-900/40 bg-rose-50/90 dark:bg-rose-950/30 backdrop-blur-md shadow-lg px-5 py-4 flex items-center gap-3 hover:bg-rose-100/90 dark:hover:bg-rose-950/50 transition-colors"
+              >
+                <BellRing className="w-4 h-4 text-rose-500 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+                    {activeAlarms.length} alarm{activeAlarms.length !== 1 ? "s" : ""} aktif
+                  </p>
+                  <p className="text-[11px] text-rose-500/70 dark:text-rose-500 mt-0.5 truncate">
+                    {activeAlarms[0]?.message ?? "Lihat detail alarm"}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-rose-400 shrink-0" />
+              </Link>
+            )}
+          </>
         )}
 
       </div>

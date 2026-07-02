@@ -11,13 +11,11 @@ class MQTTClient:
         self.client.on_message = self.on_message
         self.client.on_disconnect = self.on_disconnect
 
-        # Set username & password kalau ada di env var
         username = os.getenv("MQTT_USERNAME")
         password = os.getenv("MQTT_PASSWORD")
         if username and password:
             self.client.username_pw_set(username, password)
 
-        # Aktifkan TLS kalau MQTT_USE_TLS=true (dipakai untuk HiveMQ Cloud)
         if os.getenv("MQTT_USE_TLS", "false").lower() == "true":
             self.client.tls_set(cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLS)
 
@@ -33,17 +31,17 @@ class MQTTClient:
         print(f"⚠️ MQTT Terputus (rc={rc}), paho akan auto-reconnect...")
 
     def on_message(self, client, userdata, message):
-        try:
-            payload_str = message.payload.decode("utf-8")
-            print(f"📩 Data Masuk via MQTT [{message.topic}]: {payload_str}")
-            MessageHandler.handle(message.topic, payload_str)
-        except Exception as e:
-            print(f"⚠️ Gagal memproses data MQTT internal FastAPI: {e}")
+        # Retained message diabaikan SEBELUM diproses, bukan setelahnya
         if message.retain:
             print(f"⚠️ Retained message diabaikan: {message.topic}")
             return
 
-        MessageHandler.handle(message.topic, message.payload.decode("utf-8", errors="ignore"))
+        try:
+            payload_str = message.payload.decode("utf-8", errors="ignore")
+            print(f"📩 Data Masuk via MQTT [{message.topic}]: {payload_str}")
+            MessageHandler.handle(message.topic, payload_str)
+        except Exception as e:
+            print(f"⚠️ Gagal memproses data MQTT internal FastAPI: {e}")
 
     def connect_and_start(self):
         host = os.getenv("MQTT_HOST", "127.0.0.1")
